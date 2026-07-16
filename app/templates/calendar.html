@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="calendar-toolbar">
+        <h2>Full Calendar View</h2>
+        <div class="toolbar-actions">
+            <select id="month-select"></select>
+            <select id="year-select"></select>
+        </div>
+    </div>
+    <p>Urgent activities appear on each date for the selected month, and the range spans two years in the past and two years in the future.</p>
+    <div id="calendar-root"></div>
+</div>
+<script>
+const events = {{ events|default([])|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+{% endblock %}

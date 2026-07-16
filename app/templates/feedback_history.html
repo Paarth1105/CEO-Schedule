@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="section-header">
+        <div>
+            <h2>Feedback history</h2>
+            <p>{% if current_user.is_admin_role() %}Review requests, provide updates, and manage progress.{% else %}Check the latest feedback and acknowledge it when you are satisfied.{% endif %}</p>
+        </div>
+    </div>
+    {% for req in requests %}
+        <div class="request-item request-card">
+            <div class="request-top">
+                <h4>{{ req.subject }}</h4>
+                <span class="chip {{ req.priority|lower }}">{{ req.priority }}</span>
+            </div>
+            <div class="request-meta">
+                <span>Requested: {{ req.time_needed }}</span>
+                <span>Status: {{ req.status }}</span>
+            </div>
+            <div class="feedback-block">
+                <p><strong>Employee message:</strong> {{ req.message or '—' }}</p>
+                <p><strong>Given Time by Sir:</strong> {{ req.feedback_time or '—' }}</p>
+                <p><strong>Feedback message:</strong> {{ req.feedback_message or req.feedback or 'Pending' }}</p>
+            </div>
+            {% if current_user.is_admin_role() %}
+            <form method="post" class="stacked-form">
+                <input type="hidden" name="request_id" value="{{ req.id }}">
+                <label class="field-card">
+                    <span>Feedback</span>
+                    <textarea name="feedback" rows="4">{{ req.feedback or '' }}</textarea>
+                </label>
+                <label class="field-card">
+                    <span>Status</span>
+                    <select name="status">
+                        <option value="Pending" {% if req.status=='Pending' %}selected{% endif %}>Pending</option>
+                        <option value="Acknowledged" {% if req.status=='Acknowledged' %}selected{% endif %}>Acknowledged</option>
+                        <option value="Completed" {% if req.status=='Completed' %}selected{% endif %}>Completed</option>
+                    </select>
+                </label>
+                <button type="submit" class="btn primary">Update</button>
+            </form>
+            {% endif %}
+        </div>
+    {% else %}
+        <p class="empty-state">No requests found.</p>
+    {% endfor %}
+</div>
+{% endblock %}

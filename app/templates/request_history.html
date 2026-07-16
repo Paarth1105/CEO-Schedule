@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="section-header">
+        <div>
+            <h2>Request history</h2>
+            <p>{% if current_user.is_admin_role() %}Employee requests will appear here for PA/SA to review.{% else %}See your request details and feedback from PA/SA.{% endif %}</p>
+        </div>
+    </div>
+
+    {% for req in requests %}
+        <div class="request-item request-card">
+            <div class="request-top">
+                <h4>{{ req.subject }}</h4>
+                <span class="chip {{ req.priority|lower }}">{{ req.priority }}</span>
+            </div>
+            <div class="request-meta">
+                <span><strong>Time to discuss:</strong> {{ req.time_needed }}</span>
+                {% if current_user.is_admin_role() %}
+                    <span><strong>{{ req.user.name }}</strong> • {{ req.user.designation }}</span>
+                {% endif %}
+            </div>
+            <div class="request-body">
+                <p><strong>Message</strong></p>
+                <p>{{ req.message }}</p>
+            </div>
+            <div class="request-actions">
+                {% if not current_user.is_admin_role() %}
+                    <a class="pill" href="{{ url_for('dashboard.edit_request', req_id=req.id) }}">Edit</a>
+                {% endif %}
+                {% if current_user.is_admin_role() %}
+                    <a class="pill" href="{{ url_for('dashboard.reply_request', req_id=req.id) }}">Reply</a>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <p class="empty-state">No requests found.</p>
+    {% endfor %}
+</div>
+{% endblock %}

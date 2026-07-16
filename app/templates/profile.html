@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card form-shell" style="max-width: 600px; margin: 40px auto;">
+    <div class="section-header">
+        <div>
+            <h2>Edit Profile Info</h2>
+            <p>Update your personal information below. If you change your email or password, you will use them for future logins.</p>
+        </div>
+    </div>
+    <form method="post" class="stacked-form">
+        <label class="field-card">
+            <span>Name</span>
+            <input type="text" name="name" value="{{ current_user.name }}" required>
+        </label>
+        <label class="field-card">
+            <span>Department</span>
+            <input type="text" name="department" value="{{ current_user.department }}" required>
+        </label>
+        <label class="field-card">
+            <span>Designation</span>
+            <input type="text" name="designation" value="{{ current_user.designation }}" required>
+        </label>
+        <label class="field-card">
+            <span>Email</span>
+            <input type="email" name="email" value="{{ current_user.email }}" required>
+        </label>
+        <label class="field-card">
+            <span>Password (Leave blank to keep current password)</span>
+            <input type="password" name="password" id="password" placeholder="New Password">
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                <input type="checkbox" id="show-pass" onclick="document.getElementById('password').type = this.checked ? 'text' : 'password'" style="width: 16px; height: 16px; margin: 0; padding: 0; cursor: pointer; accent-color: var(--primary);">
+                <label for="show-pass" style="margin: 0; font-size: 0.85rem; font-weight: normal; cursor: pointer;">Show Password</label>
+            </div>
+        </label>
+        <button type="submit" class="btn primary">Save Changes</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card form-card">
+    <div class="section-header">
+        <div>
+            <h2>Edit request</h2>
+            <p>Update the request details. Requests with feedback cannot be edited.</p>
+        </div>
+    </div>
+    <form method="post" class="stacked-form">
+        <label>Subject</label>
+        <input type="text" name="subject" value="{{ req.subject }}" required>
+        <label>Priority</label>
+        <select name="priority">
+            <option value="Urgent" {% if req.priority=='Urgent' %}selected{% endif %}>Urgent</option>
+            <option value="Normal" {% if req.priority=='Normal' %}selected{% endif %}>Normal</option>
+            <option value="Confidential" {% if req.priority=='Confidential' %}selected{% endif %}>Confidential</option>
+        </select>
+        <label>Time needed for discussion</label>
+        <div class="time-picker-group">
+            <input type="date" name="discussion_date" value="{{ discussion_date }}" required>
+            <select name="discussion_hour" class="time-select">
+                {% for hour in range(1, 13) %}<option value="{{ '%02d'|format(hour) }}" {% if discussion_hour == '%02d'|format(hour) %}selected{% endif %}>{{ '%02d'|format(hour) }}</option>{% endfor %}
+            </select>
+            <select name="discussion_minute" class="time-select">
+                {% for minute in ['00','15','30','45'] %}<option value="{{ minute }}" {% if discussion_minute == minute %}selected{% endif %}>{{ minute }}</option>{% endfor %}
+            </select>
+            <select name="discussion_meridiem" class="time-select">
+                <option value="AM" {% if discussion_meridiem == 'AM' %}selected{% endif %}>AM</option>
+                <option value="PM" {% if discussion_meridiem == 'PM' %}selected{% endif %}>PM</option>
+            </select>
+        </div>
+        <label>Message</label>
+        <textarea name="message">{{ req.message }}</textarea>
+        <button type="submit">Save changes</button>
+    </form>
+</div>
+{% endblock %}

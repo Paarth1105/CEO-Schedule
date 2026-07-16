@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="section-header">
+        <div>
+            <h3>Notifications History</h3>
+            <p>{% if current_user.is_admin_role() %}All acknowledged notifications from all users are shown below.{% else %}All notifications that you have acknowledged are shown below.{% endif %}</p>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date Received</th>
+                    {% if current_user.is_admin_role() %}
+                    <th>User</th>
+                    {% endif %}
+                    <th>Sender</th>
+                    <th>Message</th>
+                    <th>Time Requested</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for notif in notifications %}
+                <tr>
+                    <td>{{ to_ist(notif.created_at).strftime('%d %b %Y %I:%M %p') }}</td>
+                    {% if current_user.is_admin_role() %}
+                    <td><strong>{{ notif.user.name }}</strong> ({{ notif.user.role }})</td>
+                    {% endif %}
+                    <td><strong>{{ notif.sender.name }}</strong> ({{ notif.sender.role }})</td>
+                    <td style="white-space: pre-line;">{{ notif.message }}</td>
+                    <td><strong>{{ notif.time_needed }}</strong></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{% if current_user.is_admin_role() %}5{% else %}4{% endif %}" class="empty-state">No acknowledged notifications yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

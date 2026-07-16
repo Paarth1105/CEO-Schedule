@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card form-card">
+    <div class="section-header">
+        <div>
+            <h2>Reply to request</h2>
+            <p>Provide the time given by Sir and a short message as feedback.</p>
+        </div>
+    </div>
+    <div class="request-item">
+        <h4>{{ req.subject }}</h4>
+        <p><strong>Employee:</strong> {{ req.user.name }} • {{ req.user.designation }}</p>
+        <p><strong>Original message:</strong></p>
+        <p>{{ req.message }}</p>
+    </div>
+    <form method="post" class="stacked-form">
+        <label>Given Time by Sir</label>
+        <div class="time-picker-group">
+            <input type="date" name="reply_date" required>
+            <select name="reply_hour" class="time-select">
+                {% for hour in range(1, 13) %}<option value="{{ '%02d'|format(hour) }}">{{ '%02d'|format(hour) }}</option>{% endfor %}
+            </select>
+            <select name="reply_minute" class="time-select">
+                {% for minute in ['00','15','30','45'] %}<option value="{{ minute }}">{{ minute }}</option>{% endfor %}
+            </select>
+            <select name="reply_meridiem" class="time-select">
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+            </select>
+        </div>
+        <label>Message</label>
+        <textarea name="message" placeholder="Short feedback message" required></textarea>
+        <button type="submit">Send reply</button>
+    </form>
+</div>
+{% endblock %}

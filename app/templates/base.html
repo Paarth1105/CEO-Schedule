@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEO Sir Schedule Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body data-theme="light">
+    {% if unread_notifications %}
+    <div class="notification-strike-container">
+        {% for notif in unread_notifications %}
+        <div class="notification-strike-card">
+            <div class="notif-badge">New Notification</div>
+            <div class="notif-sender">From: <strong>{{ notif.sender.name }}</strong> ({{ notif.sender.role }})</div>
+            <div class="notif-message">{{ notif.message }}</div>
+            <div class="notif-time">
+                <span class="notif-time-label">Time Needed</span>
+                <span class="notif-time-value">{{ notif.time_needed }}</span>
+            </div>
+            <form action="{{ url_for('dashboard.acknowledge_notification', notif_id=notif.id) }}" method="post" class="notif-ack-form">
+                <button type="submit" class="btn primary ack-btn">Acknowledge</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <nav class="navbar">
+        <a class="brand" href="{{ url_for('dashboard.schedule') }}">
+            <img src="{{ url_for('static', filename='images/logo.jpeg') }}" alt="Company logo">
+            <span>CS's Creative Solutions</span>
+        </a>
+        <div class="nav-actions">
+            {% if session.get('user_id') %}
+            <a class="nav-pill nav-date" href="{{ url_for('dashboard.schedule', range='today') }}">
+                <span class="nav-date-label">Today</span>
+                <strong>{{ today_label }}</strong>
+            </a>
+            <a class="nav-pill" href="{{ url_for('dashboard.calendar_view') }}">Calendar</a>
+            <div class="dropdown-wrapper">
+                <button type="button" class="nav-pill dropdown-trigger-btn" id="download-trigger-btn">Download ▾</button>
+                <div class="dropdown-menu-download" id="download-dropdown-menu">
+                    <a href="#" id="download-excel-btn">Excel</a>
+                    <a href="#" id="download-word-btn">Word file</a>
+                </div>
+            </div>
+            <label class="theme-picker" for="theme-select">
+                <span>Theme</span>
+                <select id="theme-select">
+                    <option value="light">Light Mode</option>
+                    <option value="dark">Night Mode</option>
+                </select>
+            </label>
+            <div class="user-menu">
+                <button class="user-trigger" type="button">
+                    <span>{{ session.get('user_name', 'User') }}</span>
+                    <span class="caret">▾</span>
+                </button>
+                <div class="user-menu-dropdown">
+                    <a href="{{ url_for('dashboard.profile') }}">Personal info</a>
+                    <a href="{{ url_for('dashboard.request_history') }}">Request history</a>
+                    <a href="{{ url_for('dashboard.notifications') }}">Notifications</a>
+                    {% if session.get('user_role') in ['Personal Assistant', 'Senior Assistant'] %}
+                    <a href="{{ url_for('admin.new_schedule') }}">Add schedule</a>
+                    <a href="{{ url_for('dashboard.employees_list') }}">Employees</a>
+                    <a href="{{ url_for('dashboard.feedback_history') }}">Feedback history</a>
+                    {% else %}
+                    <a href="{{ url_for('dashboard.new_employee_schedule') }}">Add Schedule</a>
+                    <a href="{{ url_for('dashboard.generate_request') }}">Generate a request</a>
+                    <a href="{{ url_for('dashboard.feedback_history') }}">Feedback history</a>
+                    {% endif %}
+                    <a href="{{ url_for('auth.logout') }}">Logout</a>
+                </div>
+            </div>
+            {% else %}
+            <a class="nav-pill" href="{{ url_for('auth.login') }}">Login</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

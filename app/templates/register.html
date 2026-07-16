@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card auth-card">
+    <h2>Register</h2>
+    <form method="post">
+        <label>Name</label>
+        <input type="text" name="name" required>
+        <label>Department</label>
+        <input type="text" name="department" required>
+        <label>Designation</label>
+        <input type="text" name="designation" required>
+        <label>Email</label>
+        <input type="email" name="email" required>
+        <label>Password</label>
+        <input type="password" name="password" id="password" required>
+        <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 12px 0;">
+            <input type="checkbox" id="show-pass" onclick="document.getElementById('password').type = this.checked ? 'text' : 'password'" style="width: 16px; height: 16px; margin: 0; padding: 0; cursor: pointer; accent-color: var(--primary);">
+            <label for="show-pass" style="margin: 0; font-size: 0.85rem; font-weight: normal; cursor: pointer;">Show Password</label>
+        </div>
+        <label>Role</label>
+        <select name="role">
+            <option value="Employee">Employee</option>
+            <option value="Personal Assistant">Personal Assistant</option>
+            <option value="Senior Assistant">Senior Assistant</option>
+        </select>
+        <button type="submit">Register</button>
+    </form>
+    <p class="helper">Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a></p>
+</div>
+{% endblock %}

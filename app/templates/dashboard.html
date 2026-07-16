@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card dashboard-shell">
+    <div class="section-header">
+        <div>
+            <h3>{% if view_type == 'mine' %}My Schedule{% elif view_type == 'employee' and target_employee %}{{ target_employee.name }}'s Schedule{% else %}Schedule overview{% endif %}</h3>
+            <p>Showing {{ range_label }} with {{ entries|length }} scheduled event(s).</p>
+        </div>
+        <form class="filter-toolbar" method="get" action="{{ url_for('dashboard.schedule') }}">
+            <input type="hidden" name="view_type" value="{{ view_type }}">
+            {% if target_employee %}
+            <input type="hidden" name="employee_id" value="{{ target_employee.id }}">
+            {% endif %}
+            <div class="filter-group">
+                <label class="filter-label" for="range">Sort</label>
+                <select id="range" name="range" class="pill-select" onchange="this.form.submit()">
+                    <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Today's Schedule</option>
+                    <option value="7d" {% if range_filter == '7d' %}selected{% endif %}>Last 7 days</option>
+                    <option value="15d" {% if range_filter == '15d' %}selected{% endif %}>Last 15 days</option>
+                    <option value="1m" {% if range_filter == '1m' %}selected{% endif %}>Last month</option>
+                    <option value="upcoming" {% if range_filter == 'upcoming' %}selected{% endif %}>Upcoming</option>
+                </select>
+                <input type="hidden" name="rescheduled" value="{{ '1' if rescheduled else '0' }}">
+            </div>
+            <div class="filter-group">
+                {% if rescheduled %}
+                    <a class="pill active" href="{{ url_for('dashboard.schedule', range=range_filter, view_type=view_type, employee_id=target_employee.id if target_employee else '') }}">Rescheduled Log</a>
+                {% else %}
+                    <a class="pill" href="{{ url_for('dashboard.schedule', range=range_filter, rescheduled='1', view_type=view_type, employee_id=target_employee.id if target_employee else '') }}">Rescheduled Log</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    {% if not current_user.is_admin_role() %}
+    <div class="filter-group" style="margin-bottom: 20px; display: flex; gap: 8px;">
+        <a class="pill {% if view_type == 'ceo' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='ceo') }}">CEO Schedule</a>
+        <a class="pill {% if view_type == 'mine' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='mine') }}">My Schedule</a>
+    </div>
+    {% elif view_type == 'employee' and target_employee %}
+    <div style="margin-bottom: 20px;">
+        <a class="inline-link" href="{{ url_for('dashboard.employees_list') }}">← Back to Employees</a>
+    </div>
+    {% endif %}
+
+    <div class="table-wrap">
+        <table>
+            {% if view_type == 'mine' or view_type == 'employee' %}
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Reschedule</th>
+                    <th>Options</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr>
+                    <td>{{ entry.event_date.strftime('%d - %B - %Y') }}</td>
+                    <td>{{ entry.time }}</td>
+                    <td><span class="chip {{ entry.priority|lower }}">{{ entry.priority }}</span></td>
+                    <td>{{ entry.status }}</td>
+                    <td>{{ entry.reschedule }}</td>
+                    <td>
+                        <a class="inline-link" href="{{ url_for('dashboard.edit_employee_schedule', entry_id=entry.id) }}">Edit</a>
+                        <span style="color: var(--border);">|</span>
+                        <a class="inline-link" style="color: var(--danger);" href="{{ url_for('dashboard.delete_employee_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to delete this schedule entry?');">Delete</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="empty-state">No schedule entries available for this range.</td></tr>
+                {% endfor %}
+            </tbody>
+            {% else %}
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Given Time</th>
+                    <th>Activity</th>
+                    <th>Location</th>
+                    <th>Responsible Person</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Remark</th>
+                    <th>Reschedule</th>
+                    <th>Attendants</th>
+                    {% if current_user.is_admin_role() %}<th>Action</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr>
+                    <td>{{ entry.event_date.strftime('%d - %B - %Y') }}</td>
+                    <td>{{ entry.time }}</td>
+                    <td>{{ entry.given_time or '-' }}</td>
+                    <td>{{ entry.activity }}</td>
+                    <td>{{ entry.location }}</td>
+                    <td>{{ entry.responsible_person }}</td>
+                    <td><span class="chip {{ entry.priority|lower }}">{{ entry.priority }}</span></td>
+                    <td>{{ entry.status }}</td>
+                    <td>{{ entry.remark }}</td>
+                    <td>{{ entry.reschedule }}</td>
+                    <td>
+                        <div class="attendants-cell-wrapper" id="attendants-wrapper-{{ entry.id }}">
+                            <div class="attendants-names-list" id="attendants-list-{{ entry.id }}">
+                                {% if entry.attendants %}
+                                    {% for att in entry.attendants %}
+                                        <span class="attendant-name-badge" title="{{ att.role }}">{{ att.name }}</span>{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="muted-text">None</span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if current_user.is_admin_role() %}
+                            <div class="inline-manage-dropdown attend-toggle-ui">
+                                <button type="button" class="btn-manage-attendants dropdown-trigger" data-dropdown-id="dropdown-{{ entry.id }}">
+                                    + Add/Remove
+                                </button>
+                                <div class="dropdown-menu inline-attendants-dropdown" id="dropdown-{{ entry.id }}">
+                                    <div class="dropdown-header">Manage Attendants</div>
+                                    <div class="dropdown-list">
+                                        {% for u in users %}
+                                        <label class="dropdown-item">
+                                            <input type="checkbox" class="ajax-attendant-checkbox" 
+                                                   data-entry-id="{{ entry.id }}" 
+                                                   data-user-id="{{ u.id }}"
+                                                   {% if u in entry.attendants %}checked{% endif %}>
+                                            <span>{{ u.name }}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="attend-toggle-ui" style="margin-top: 6px;">
+                                {% set is_attending = current_user in entry.attendants %}
+                                <button type="button" 
+                                        class="btn-attend-toggle {% if is_attending %}active{% endif %}" 
+                                        data-entry-id="{{ entry.id }}"
+                                        data-user-name="{{ current_user.name }}">
+                                    {% if is_attending %}✓ Attending{% else %}Attend{% endif %}
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    {% if current_user.is_admin_role() %}<td><a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a></td>{% endif %}
+                </tr>
+                {% else %}
+                <tr><td colspan="{% if current_user.is_admin_role() %}12{% else %}11{% endif %}" class="empty-state">No schedule entries available for this range.</td></tr>
+                {% endfor %}
+            </tbody>
+            {% endif %}
+        </table>
+    </div>
+</div>
+{% endblock %}

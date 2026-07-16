@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <h2>{% if entry %}Edit{% else %}Create{% endif %} Schedule Entry</h2>
+    <form method="post">
+        <label>Date</label>
+        <input type="date" name="event_date" value="{{ entry.event_date if entry else '' }}" required>
+        <label>Start Time</label>
+        <div class="time-picker-group" style="margin-bottom: 10px;">
+            <select name="start_hour" class="time-select" required>
+                <option value="">Hour</option>
+                {% for hour in range(1, 13) %}
+                {% set h_str = '%02d'|format(hour) %}
+                <option value="{{ h_str }}" {% if start_hour|default('') == h_str %}selected{% endif %}>{{ h_str }}</option>
+                {% endfor %}
+            </select>
+            <select name="start_minute" class="time-select" required>
+                <option value="">Minute</option>
+                {% for minute in ['00','15','30','45'] %}
+                <option value="{{ minute }}" {% if start_minute|default('') == minute %}selected{% endif %}>{{ minute }}</option>
+                {% endfor %}
+            </select>
+            <select name="start_meridiem" class="time-select" required>
+                <option value="AM" {% if start_meridiem|default('AM') == 'AM' %}selected{% endif %}>AM</option>
+                <option value="PM" {% if start_meridiem|default('AM') == 'PM' %}selected{% endif %}>PM</option>
+            </select>
+        </div>
+
+        <label>End Time</label>
+        <div class="time-picker-group" style="margin-bottom: 10px;">
+            <select name="end_hour" class="time-select" required>
+                <option value="">Hour</option>
+                {% for hour in range(1, 13) %}
+                {% set h_str = '%02d'|format(hour) %}
+                <option value="{{ h_str }}" {% if end_hour|default('') == h_str %}selected{% endif %}>{{ h_str }}</option>
+                {% endfor %}
+            </select>
+            <select name="end_minute" class="time-select" required>
+                <option value="">Minute</option>
+                {% for minute in ['00','15','30','45'] %}
+                <option value="{{ minute }}" {% if end_minute|default('') == minute %}selected{% endif %}>{{ minute }}</option>
+                {% endfor %}
+            </select>
+            <select name="end_meridiem" class="time-select" required>
+                <option value="AM" {% if end_meridiem|default('PM') == 'AM' %}selected{% endif %}>AM</option>
+                <option value="PM" {% if end_meridiem|default('PM') == 'PM' %}selected{% endif %}>PM</option>
+            </select>
+        </div>
+        <label>Given Time</label>
+        <input type="text" id="given_time" name="given_time" value="{{ entry.given_time if entry else '' }}" readonly placeholder="Auto-calculated from Start and End time" style="background-color: var(--border); cursor: not-allowed;">
+
+        <label>Activity</label>
+        <input type="text" name="activity" value="{{ entry.activity if entry else '' }}" required>
+        <label>Location</label>
+        <input type="text" name="location" value="{{ entry.location if entry else '' }}" required>
+        <label>Responsible Person</label>
+        <input type="text" name="responsible_person" value="{{ entry.responsible_person if entry else '' }}" required>
+        <label>Priority</label>
+        <select name="priority">
+            <option value="Urgent" {% if entry and entry.priority=='Urgent' %}selected{% endif %}>Urgent</option>
+            <option value="Normal" {% if entry and entry.priority=='Normal' %}selected{% endif %}>Normal</option>
+            <option value="Confidential" {% if entry and entry.priority=='Confidential' %}selected{% endif %}>Confidential</option>
+        </select>
+        <label>Status</label>
+        <select name="status">
+            <option value="Planned" {% if entry and entry.status=='Planned' %}selected{% endif %}>Planned</option>
+            <option value="Done" {% if entry and entry.status=='Done' %}selected{% endif %}>Done</option>
+            <option value="Rescheduled" {% if entry and entry.status=='Rescheduled' %}selected{% endif %}>Rescheduled</option>
+        </select>
+        <label>Remark</label>
+        <input type="text" name="remark" value="{{ entry.remark if entry else '' }}">
+        <label>Reschedule</label>
+        <select name="reschedule">
+            <option value="NO" {% if entry and entry.reschedule=='NO' %}selected{% endif %}>NO</option>
+            <option value="YES" {% if entry and entry.reschedule=='YES' %}selected{% endif %}>YES</option>
+        </select>
+
+        <label>Attendants</label>
+        <div class="attendants-checkbox-grid">
+            {% for u in users %}
+            <label class="checkbox-card">
+                <input type="checkbox" name="attendants" value="{{ u.id }}" {% if entry and u in entry.attendants %}checked{% endif %}>
+                <div class="checkbox-info">
+                    <span class="user-name">{{ u.name }}</span>
+                    <span class="user-role">{{ u.role }} ({{ u.department }})</span>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+
+        <button type="submit">Save</button>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const startHourSelect = document.querySelector('select[name="start_hour"]');
+    const startMinuteSelect = document.querySelector('select[name="start_minute"]');
+    const startMeridiemSelect = document.querySelector('select[name="start_meridiem"]');
+    const endHourSelect = document.querySelector('select[name="end_hour"]');
+    const endMinuteSelect = document.querySelector('select[name="end_minute"]');
+    const endMeridiemSelect = document.querySelector('select[name="end_meridiem"]');
+    const givenTimeInput = document.getElementById('given_time');
+
+    function calculateGivenTime() {
+        const startH = startHourSelect.value;
+        const startM = startMinuteSelect.value;
+        const startMer = startMeridiemSelect.value;
+        const endH = endHourSelect.value;
+        const endM = endMinuteSelect.value;
+        const endMer = endMeridiemSelect.value;
+
+        if (startH && startM && startMer && endH && endM && endMer) {
+            let sHour = parseInt(startH, 10);
+            const sMin = parseInt(startM, 10);
+            if (startMer === 'PM' && sHour !== 12) sHour += 12;
+            if (startMer === 'AM' && sHour === 12) sHour = 0;
+            const startTotal = sHour * 60 + sMin;
+
+            let eHour = parseInt(endH, 10);
+            const eMin = parseInt(endM, 10);
+            if (endMer === 'PM' && eHour !== 12) eHour += 12;
+            if (endMer === 'AM' && eHour === 12) eHour = 0;
+            let endTotal = eHour * 60 + eMin;
+
+            let diff = endTotal - startTotal;
+            if (diff < 0) {
+                // assume next day or overflow
+                diff += 24 * 60;
+            }
+
+            let hours = Math.floor(diff / 60);
+            let mins = diff % 60;
+            let durationStr = '';
+            if (hours > 0) {
+                durationStr += `${hours} hr${hours > 1 ? 's' : ''}`;
+            }
+            if (mins > 0) {
+                if (durationStr) durationStr += ' ';
+                durationStr += `${mins} min${mins > 1 ? 's' : ''}`;
+            }
+            if (diff === 0) {
+                durationStr = '0 mins';
+            }
+            givenTimeInput.value = durationStr;
+        } else {
+            givenTimeInput.value = '';
+        }
+    }
+
+    [startHourSelect, startMinuteSelect, startMeridiemSelect, endHourSelect, endMinuteSelect, endMeridiemSelect].forEach(select => {
+        if (select) {
+            select.addEventListener('change', calculateGivenTime);
+        }
+    });
+
+    // Run initially in case of edit mode
+    calculateGivenTime();
+});
+</script>
+{% endblock %}

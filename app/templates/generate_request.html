@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card form-shell">
+    <div class="section-header">
+        <div>
+            <h2>Generate a request</h2>
+            <p>Share your requirement clearly so the team can respond faster.</p>
+        </div>
+    </div>
+    <form method="post" class="stacked-form">
+        <label class="field-card">
+            <span>Subject</span>
+            <input type="text" name="subject" required>
+        </label>
+        <label class="field-card">
+            <span>Priority</span>
+            <select name="priority">
+                <option value="Urgent">Urgent</option>
+                <option value="Normal">Normal</option>
+                <option value="Confidential">Confidential</option>
+            </select>
+        </label>
+        <label class="field-card">
+            <span>Time needed for discussion</span>
+            <div class="time-picker-group">
+                <input type="date" name="discussion_date" required>
+                <select name="discussion_hour" class="time-select">
+                    {% for hour in range(1, 13) %}<option value="{{ '%02d'|format(hour) }}">{{ '%02d'|format(hour) }}</option>{% endfor %}
+                </select>
+                <select name="discussion_minute" class="time-select">
+                    {% for minute in ['00','15','30','45'] %}<option value="{{ minute }}">{{ minute }}</option>{% endfor %}
+                </select>
+                <select name="discussion_meridiem" class="time-select">
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                </select>
+            </div>
+        </label>
+        <label class="field-card">
+            <span>Message</span>
+            <textarea name="message" rows="5"></textarea>
+        </label>
+        <button type="submit" class="btn primary">Confirm request</button>
+    </form>
+</div>
+{% endblock %}

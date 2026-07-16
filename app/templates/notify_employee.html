@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card form-shell">
+    <div class="section-header">
+        <div>
+            <h2>Send Notification to {{ employee.name }}</h2>
+            <p>Send a customized notification message and discussion time to this employee.</p>
+        </div>
+    </div>
+    <form method="post" class="stacked-form">
+        <label class="field-card">
+            <span>Message</span>
+            <textarea name="message" rows="5" required placeholder="Enter the message you want to send..."></textarea>
+        </label>
+        
+        <label class="field-card">
+            <span>Associate with Meeting/Schedule (Optional)</span>
+            <select name="schedule_entry_id">
+                <option value="">-- None (Just send regular notification) --</option>
+                {% for entry in ceo_schedules %}
+                <option value="{{ entry.id }}">{{ entry.event_date.strftime('%d %b %Y') }} at {{ entry.time }} - {{ entry.activity[:50] }}{% if entry.activity|length > 50 %}...{% endif %} ({{ entry.location }})</option>
+                {% endfor %}
+            </select>
+        </label>
+        
+        <label class="field-card">
+            <span>Time we want</span>
+            <div class="time-picker-group">
+                <input type="date" name="notification_date" required>
+                <select name="notification_hour" class="time-select" required>
+                    {% for hour in range(1, 13) %}
+                    <option value="{{ '%02d'|format(hour) }}">{{ '%02d'|format(hour) }}</option>
+                    {% endfor %}
+                </select>
+                <select name="notification_minute" class="time-select" required>
+                    {% for minute in ['00','15','30','45'] %}
+                    <option value="{{ minute }}">{{ minute }}</option>
+                    {% endfor %}
+                </select>
+                <select name="notification_meridiem" class="time-select" required>
+                    <option value="AM">AM</option>
+                    <option value="PM" selected>PM</option>
+                </select>
+            </div>
+        </label>
+        
+        <button type="submit" class="btn primary">SEND</button>
+    </form>
+</div>
+{% endblock %}

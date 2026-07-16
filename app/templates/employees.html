@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="section-header">
+        <div>
+            <h3>Employees list</h3>
+            <p>Select an employee to view and manage their schedule.</p>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Designation</th>
+                    <th>Email</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td><strong>{{ emp.name }}</strong></td>
+                    <td>{{ emp.department }}</td>
+                    <td>{{ emp.designation }}</td>
+                    <td>{{ emp.email }}</td>
+                    <td>
+                        <a class="inline-link" href="{{ url_for('dashboard.schedule', view_type='employee', employee_id=emp.id) }}">View Schedule</a>
+                        <span style="margin: 0 6px; color: var(--border);">|</span>
+                        <a class="inline-link" href="{{ url_for('dashboard.notify_employee', employee_id=emp.id) }}">Notify</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="empty-state">No employees registered yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
