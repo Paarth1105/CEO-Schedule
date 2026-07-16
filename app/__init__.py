@@ -54,55 +54,45 @@ from app.models.notification import Notification
 
 with app.app_context():
     db.create_all()
-    # Ensure new columns exist in request_message table (helps when schema changed without migrations)
     try:
-        res = db.session.execute(text("PRAGMA table_info('request_message')")).fetchall()
-        existing_cols = {row[1] for row in res}
-        if 'feedback_time' not in existing_cols:
-            db.session.execute(text("ALTER TABLE request_message ADD COLUMN feedback_time TEXT"))
-        if 'feedback_message' not in existing_cols:
-            db.session.execute(text("ALTER TABLE request_message ADD COLUMN feedback_message TEXT"))
-        db.session.commit()
-    except Exception:
-        # For non-SQLite DBs, try generic ALTER TABLE if needed (ignore failures)
-        try:
-            if db.engine.dialect.has_table(db.engine.connect(), 'request_message'):
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+
+        # Check request_message table
+        if inspector.has_table('request_message'):
+            columns = [c['name'] for c in inspector.get_columns('request_message')]
+            modified = False
+            if 'feedback_time' not in columns:
                 db.session.execute(text("ALTER TABLE request_message ADD COLUMN feedback_time TEXT"))
+                modified = True
+            if 'feedback_message' not in columns:
                 db.session.execute(text("ALTER TABLE request_message ADD COLUMN feedback_message TEXT"))
+                modified = True
+            if modified:
                 db.session.commit()
-        except Exception:
-            db.session.rollback()
 
-    try:
-        res2 = db.session.execute(text("PRAGMA table_info('schedule_entry')")).fetchall()
-        existing_cols2 = {row[1] for row in res2}
-        if 'given_time' not in existing_cols2:
-            db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN given_time TEXT"))
-        if 'user_id' not in existing_cols2:
-            db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN user_id INTEGER"))
-        db.session.commit()
-    except Exception:
-        try:
-            if db.engine.dialect.has_table(db.engine.connect(), 'schedule_entry'):
+        # Check schedule_entry table
+        if inspector.has_table('schedule_entry'):
+            columns2 = [c['name'] for c in inspector.get_columns('schedule_entry')]
+            modified2 = False
+            if 'given_time' not in columns2:
                 db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN given_time TEXT"))
+                modified2 = True
+            if 'user_id' not in columns2:
                 db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN user_id INTEGER"))
+                modified2 = True
+            if modified2:
                 db.session.commit()
-        except Exception:
-            db.session.rollback()
 
-    try:
-        res3 = db.session.execute(text("PRAGMA table_info('notification')")).fetchall()
-        existing_cols3 = {row[1] for row in res3}
-        if 'schedule_entry_id' not in existing_cols3:
-            db.session.execute(text("ALTER TABLE notification ADD COLUMN schedule_entry_id INTEGER"))
-        db.session.commit()
-    except Exception:
-        try:
-            if db.engine.dialect.has_table(db.engine.connect(), 'notification'):
+        # Check notification table
+        if inspector.has_table('notification'):
+            columns3 = [c['name'] for c in inspector.get_columns('notification')]
+            if 'schedule_entry_id' not in columns3:
                 db.session.execute(text("ALTER TABLE notification ADD COLUMN schedule_entry_id INTEGER"))
                 db.session.commit()
-        except Exception:
-            db.session.rollback()
+    except Exception as e:
+        db.session.rollback()
+        print("Schema verification warning:", e)
 
 
 from app.routes.auth import auth_bp
