@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="section-header" style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px;">
+        <div>
+            <h2 style="color: var(--primary); margin: 0 0 4px 0;">User Management Portal</h2>
+            <p style="color: var(--muted); margin: 0;">View credentials, update designations/departments, reset passwords, or delete users.</p>
+        </div>
+        <div>
+            <a class="btn" href="{{ url_for('auth.register') }}" style="display: inline-flex; align-items: center; gap: 8px;">
+                <span>+ Register New User</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Name</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Email</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Department</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Designation</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Role</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Password</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border); text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 12px;"><strong>{{ u.name }}</strong></td>
+                    <td style="padding: 12px;">{{ u.email }}</td>
+                    <td style="padding: 12px;">{{ u.department }}</td>
+                    <td style="padding: 12px;">{{ u.designation }}</td>
+                    <td style="padding: 12px;">
+                        <span class="pill" style="background: var(--primary-soft); color: var(--primary); font-size: 0.85rem; padding: 4px 8px; border-radius: 6px;">
+                            {{ u.role }}
+                        </span>
+                    </td>
+                    <td style="padding: 12px;">
+                        <code style="font-family: monospace; background: var(--bg); padding: 4px 8px; border-radius: 4px; font-size: 0.9rem;">{{ u.password }}</code>
+                    </td>
+                    <td style="padding: 12px; text-align: center;">
+                        <div style="display: inline-flex; gap: 8px; justify-content: center; align-items: center;">
+                            <a class="btn" href="{{ url_for('admin.edit_user', user_id=u.id) }}" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; background: var(--primary);">
+                                Edit
+                            </a>
+                            {% if session.get('user_id') != u.id %}
+                            <form action="{{ url_for('admin.delete_user', user_id=u.id) }}" method="post" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to delete user {{ u.name }}? This action cannot be undone.');">
+                                <button type="submit" class="btn danger" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; background: var(--danger); color: white;">
+                                    Delete
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color: var(--muted); font-size: 0.8rem; font-style: italic;">Current Admin</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

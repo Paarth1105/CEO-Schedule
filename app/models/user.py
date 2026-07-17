@@ -12,4 +12,4 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def is_admin_role(self):
-        return self.role in {'Personal Assistant', 'Senior Assistant'}
+        return self.role in {'Personal Assistant', 'Senior Assistant', 'Admin'}

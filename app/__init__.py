@@ -16,6 +16,29 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
 )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+import os
+
+database_url = os.getenv("DATABASE_URL")
+print("DATABASE_URL =", repr(database_url))
+
+if database_url:
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace(
+            "postgres://",
+            "postgresql://",
+            1
+        )
+else:
+    database_url = "sqlite:///" + os.path.join(
+        parent_dir,
+        "instance",
+        "schedule_app.db"
+    )
+
+print("Using database:", database_url)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
 db = SQLAlchemy(app)
 
 @app.context_processor

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card form-shell" style="max-width: 600px; margin: 40px auto;">
+    <div class="section-header">
+        <div>
+            <h2 style="color: var(--primary); margin: 0 0 4px 0;">Edit User Profile</h2>
+            <p style="color: var(--muted); margin: 0;">Update account credentials, department, designation, or role for <strong>{{ user.name }}</strong>.</p>
+        </div>
+    </div>
+    <form method="post" class="stacked-form">
+        <label class="field-card">
+            <span>Name</span>
+            <input type="text" name="name" value="{{ user.name }}" required>
+        </label>
+        <label class="field-card">
+            <span>Department</span>
+            <input type="text" name="department" value="{{ user.department }}" required>
+        </label>
+        <label class="field-card">
+            <span>Designation</span>
+            <input type="text" name="designation" value="{{ user.designation }}" required>
+        </label>
+        <label class="field-card">
+            <span>Email</span>
+            <input type="email" name="email" value="{{ user.email }}" required>
+        </label>
+        <label class="field-card">
+            <span>Role</span>
+            <select name="role" required style="width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); color: var(--text);">
+                <option value="Employee" {% if user.role == 'Employee' %}selected{% endif %}>Employee</option>
+                <option value="Personal Assistant" {% if user.role == 'Personal Assistant' %}selected{% endif %}>Personal Assistant</option>
+                <option value="Senior Assistant" {% if user.role == 'Senior Assistant' %}selected{% endif %}>Senior Assistant</option>
+                <option value="Admin" {% if user.role == 'Admin' %}selected{% endif %}>Admin</option>
+            </select>
+        </label>
+        <label class="field-card">
+            <span>Password (Plain Text)</span>
+            <input type="text" name="password" id="password" value="{{ user.password }}" required placeholder="Enter password">
+        </label>
+        
+        <div class="form-actions" style="margin-top: 10px;">
+            <button type="submit" class="btn primary">Save Changes</button>
+            <a href="{{ url_for('admin.manage_users') }}" class="btn" style="background: var(--surface-alt); color: var(--text); border: 1px solid var(--border);">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

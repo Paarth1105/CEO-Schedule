@@ -31,6 +31,20 @@ def admin_required(view):
     return wrapped
 
 
+def admin_only(view):
+    def wrapped(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please log in first.', 'warning')
+            return redirect(url_for('auth.login'))
+        user = User.query.get(session['user_id'])
+        if not user or user.role != 'Admin':
+            flash('Only the Admin can manage users.', 'danger')
+            return redirect(url_for('dashboard.schedule'))
+        return view(*args, **kwargs)
+    wrapped.__name__ = view.__name__
+    return wrapped
+
+
 @admin_bp.route('/admin/schedule/new', methods=['GET', 'POST'])
 @admin_required
 def new_schedule():
@@ -155,3 +169,57 @@ def delete_schedule(entry_id):
     db.session.commit()
     flash('Schedule entry deleted.', 'success')
     return redirect(url_for('dashboard.schedule'))
+
+
+@admin_bp.route('/admin/users', methods=['GET'])
+@admin_only
+def manage_users():
+    users = User.query.order_by(User.name.asc()).all()
+    return render_template('manage_users.html', users=users)
+
+
+@admin_bp.route('/admin/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@admin_only
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        department = request.form['department'].strip()
+        designation = request.form['designation'].strip()
+        email = request.form['email'].strip()
+        password = request.form.get('password', '').strip()
+        role = request.form['role']
+
+        # Check email uniqueness
+        existing = User.query.filter(User.email == email, User.id != user.id).first()
+        if existing:
+            flash('Email is already registered by another account.', 'danger')
+            return redirect(url_for('admin.edit_user', user_id=user.id))
+
+        user.name = name
+        user.department = department
+        user.designation = designation
+        user.email = email
+        user.role = role
+        if password:
+            user.password = password
+
+        db.session.commit()
+        flash('User updated successfully.', 'success')
+        return redirect(url_for('admin.manage_users'))
+
+    return render_template('admin_edit_user.html', user=user)
+
+
+@admin_bp.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@admin_only
+def delete_user(user_id):
+    if session.get('user_id') == user_id:
+        flash('You cannot delete your own admin account.', 'danger')
+        return redirect(url_for('admin.manage_users'))
+
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'User {user.name} has been deleted.', 'success')
+    return redirect(url_for('admin.manage_users'))
