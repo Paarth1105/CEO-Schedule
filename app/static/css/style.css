@@ -1034,4 +1034,101 @@ body[data-theme="dark"] .notif-badge {
 .inline-attendants-dropdown .dropdown-item input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
+}
+
+/* Beautiful PDF/Print styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+  }
+  
+  .navbar,
+  .filter-toolbar,
+  .flash,
+  .inline-link,
+  .attend-toggle-ui,
+  .inline-manage-dropdown,
+  .btn,
+  .pill,
+  button,
+  .dropdown-wrapper,
+  .theme-picker,
+  .user-menu,
+  a[href^="javascript:"],
+  a[href*="delete"],
+  a[href*="edit"] {
+    display: none !important;
+  }
+  
+  .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .card.dashboard-shell {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .table-wrap {
+    overflow: visible !important;
+    margin-top: 20px !important;
+  }
+  
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  th, td {
+    border: 1px solid #999999 !important;
+    color: #000000 !important;
+    padding: 8px 10px !important;
+    font-size: 9pt !important;
+    text-align: left !important;
+  }
+  
+  th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  .section-header h3 {
+    font-size: 16pt !important;
+    margin-top: 0 !important;
+    margin-bottom: 6px !important;
+    font-weight: bold !important;
+    color: #000000 !important;
+  }
+  
+  .section-header p {
+    font-size: 11pt !important;
+    margin-top: 0 !important;
+    margin-bottom: 20px !important;
+    color: #333333 !important;
+  }
+  
+  /* Ensure clean text output for attendant badges */
+  .attendant-name-badge {
+    background: none !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    font-size: 9pt !important;
+    font-weight: normal !important;
+  }
 }

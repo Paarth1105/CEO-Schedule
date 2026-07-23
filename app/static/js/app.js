@@ -89,6 +89,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return table;
   }
 
+  // Helper to get clean prefix for filenames based on the page's heading
+  function getFilenamePrefix() {
+    const headingEl = document.querySelector('.section-header h3');
+    const title = headingEl ? headingEl.innerText.trim() : 'Schedule';
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  }
+
+  // Helper to get clean display title for documents
+  function getDocumentTitle() {
+    const headingEl = document.querySelector('.section-header h3');
+    return headingEl ? headingEl.innerText.trim() : 'Schedule';
+  }
+
   // Excel (CSV) Download Option
   const downloadExcelBtn = document.getElementById('download-excel-btn');
   if (downloadExcelBtn) {
@@ -120,7 +133,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'schedule.csv';
+
+      const downloadMenu = document.getElementById('download-dropdown-menu');
+      const filenameDate = downloadMenu ? downloadMenu.getAttribute('data-filename-date') : '';
+      const prefix = getFilenamePrefix();
+      link.download = filenameDate ? `${prefix}_${filenameDate}.csv` : `${prefix}.csv`;
+
       link.click();
       URL.revokeObjectURL(url);
     });
@@ -135,6 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const cleanTable = getCleanTable();
       if (!cleanTable) return;
+
+      const downloadMenu = document.getElementById('download-dropdown-menu');
+      const scheduleDate = downloadMenu ? downloadMenu.getAttribute('data-schedule-date') : '';
+      const filenameDate = downloadMenu ? downloadMenu.getAttribute('data-filename-date') : '';
+
+      const docTitle = getDocumentTitle();
+      const displayHeading = scheduleDate ? `${docTitle} - ${scheduleDate}` : docTitle;
 
       // Build landscape oriented HTML for Microsoft Word
       const wordHtml = `
@@ -179,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </head>
 <body>
   <div class="Section1">
-    <h2>CEO Schedule Overview</h2>
+    <h2>${displayHeading}</h2>
     ${cleanTable.outerHTML}
   </div>
 </body>
@@ -190,9 +215,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'schedule.doc';
+
+      const prefix = getFilenamePrefix();
+      link.download = filenameDate ? `${prefix}_${filenameDate}.doc` : `${prefix}.doc`;
+
       link.click();
       URL.revokeObjectURL(url);
+    });
+  }
+
+  // PDF (Print style) Download Option
+  const downloadPdfBtn = document.getElementById('download-pdf-btn');
+  if (downloadPdfBtn) {
+    downloadPdfBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (downloadWrapper) downloadWrapper.classList.remove('open');
+      window.print();
     });
   }
 

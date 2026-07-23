@@ -81,9 +81,12 @@ def new_schedule():
         db.session.add(entry)
         db.session.commit()
         flash('Schedule entry created successfully.', 'success')
-        return redirect(url_for('dashboard.schedule'))
+        return redirect(url_for('dashboard.schedule', date=event_date.strftime('%Y-%m-%d')))
 
-    return render_template('admin_schedule_form.html', users=users)
+    default_date = request.args.get('date')
+    if not default_date:
+        default_date = date.today().strftime('%Y-%m-%d')
+    return render_template('admin_schedule_form.html', users=users, default_date=default_date)
 
 
 @admin_bp.route('/admin/schedule/<int:entry_id>/edit', methods=['GET', 'POST'])

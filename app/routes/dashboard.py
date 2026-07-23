@@ -104,6 +104,35 @@ def schedule():
 
     entries.sort(key=lambda x: (x.event_date, get_start_time_sort_key(x), x.id))
     users = User.query.order_by(User.name.asc()).all()
+
+    # Determine the date of the schedule in words and for the filename
+    if focus_date:
+        formatted_schedule_date = focus_date.strftime('%A, %d %B %Y')
+        filename_date = focus_date.strftime('%Y-%m-%d')
+    else:
+        if range_filter == 'today':
+            formatted_schedule_date = today.strftime('%A, %d %B %Y')
+            filename_date = today.strftime('%Y-%m-%d')
+        elif range_filter == '7d':
+            formatted_schedule_date = 'Last 7 days'
+            filename_date = 'last_7_days'
+        elif range_filter == '15d':
+            formatted_schedule_date = 'Last 15 days'
+            filename_date = 'last_15_days'
+        elif range_filter == '1m':
+            formatted_schedule_date = 'Last month'
+            filename_date = 'last_month'
+        elif range_filter == 'upcoming':
+            formatted_schedule_date = 'Upcoming'
+            filename_date = 'upcoming'
+        else:
+            formatted_schedule_date = "Today's schedule"
+            filename_date = today.strftime('%Y-%m-%d')
+
+    if rescheduled_only:
+        formatted_schedule_date = f"{formatted_schedule_date} (Rescheduled)"
+        filename_date = f"{filename_date}_rescheduled"
+
     return render_template(
         'dashboard.html',
         entries=entries,
@@ -115,6 +144,8 @@ def schedule():
         view_type=view_type,
         target_employee=target_employee,
         users=users,
+        formatted_schedule_date=formatted_schedule_date,
+        filename_date=filename_date,
     )
 
 
@@ -375,9 +406,12 @@ def new_employee_schedule():
         db.session.add(entry)
         db.session.commit()
         flash('Schedule entry created successfully.', 'success')
-        return redirect(url_for('dashboard.schedule', view_type='mine'))
+        return redirect(url_for('dashboard.schedule', view_type='mine', date=event_date.strftime('%Y-%m-%d')))
 
-    return render_template('employee_schedule_form.html', entry=None)
+    default_date = request.args.get('date')
+    if not default_date:
+        default_date = date.today().strftime('%Y-%m-%d')
+    return render_template('employee_schedule_form.html', entry=None, default_date=default_date)
 
 
 @dashboard_bp.route('/schedule/<int:entry_id>/edit', methods=['GET', 'POST'])

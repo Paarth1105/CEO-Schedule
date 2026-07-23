@@ -10,18 +10,10 @@ parent_dir = os.path.dirname(basedir)
 app = Flask(__name__, instance_path=os.path.join(parent_dir, 'instance'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 # Allow configuring a Postgres (or any SQLALCHEMY) database via environment variable
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL',
-    'sqlite:///' + os.path.join(parent_dir, 'instance', 'schedule_app.db')
-)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-import os
-
-database_url = os.getenv("DATABASE_URL")
-print("DATABASE_URL =", repr(database_url))
+database_url = os.environ.get("DATABASE_URL")
 
 if database_url:
+    # Render sometimes provides postgres://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace(
             "postgres://",
@@ -35,11 +27,14 @@ else:
         "schedule_app.db"
     )
 
-print("Using database:", database_url)
+print("DATABASE_URL =", repr(database_url))
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+
+
 
 @app.context_processor
 def inject_common_context():

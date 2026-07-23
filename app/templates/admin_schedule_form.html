@@ -4,7 +4,7 @@
     <h2>{% if entry %}Edit{% else %}Create{% endif %} Schedule Entry</h2>
     <form method="post">
         <label>Date</label>
-        <input type="date" name="event_date" value="{{ entry.event_date if entry else '' }}" required>
+        <input type="date" name="event_date" value="{{ entry.event_date if entry else (default_date or '') }}" required>
         <label>Start Time</label>
         <div class="time-picker-group" style="margin-bottom: 10px;">
             <select name="start_hour" class="time-select" required>
