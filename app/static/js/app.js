@@ -336,5 +336,51 @@ document.addEventListener('DOMContentLoaded', () => {
       chk.checked = !chk.checked; // Revert state on network error
     }
   });
+
+  // Dynamic weekday name display for date inputs
+  const dateInputs = document.querySelectorAll('input[type="date"]');
+  dateInputs.forEach(input => {
+    // Create day label element
+    const dayLabel = document.createElement('span');
+    dayLabel.className = 'day-name-label';
+    dayLabel.style.display = 'none';
+    dayLabel.style.width = 'fit-content';
+    dayLabel.style.marginTop = '4px';
+    dayLabel.style.marginBottom = '4px';
+    dayLabel.style.padding = '4px 8px';
+    dayLabel.style.borderRadius = '6px';
+    dayLabel.style.fontSize = '0.85rem';
+    dayLabel.style.fontWeight = '600';
+    dayLabel.style.background = 'var(--primary-soft)';
+    dayLabel.style.color = 'var(--primary)';
+    
+    // Insert after the input element
+    input.parentNode.insertBefore(dayLabel, input.nextSibling);
+
+    function updateDayLabel() {
+      if (input.value) {
+        const parts = input.value.split('-');
+        if (parts.length === 3) {
+          // Parse date parts as UTC to avoid local timezone shifts
+          const dateObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+          const options = { weekday: 'long', timeZone: 'UTC' };
+          const dayName = new Intl.DateTimeFormat('en-US', options).format(dateObj);
+          dayLabel.innerHTML = `Selected day: <strong>${dayName}</strong>`;
+          dayLabel.style.display = 'inline-block';
+        } else {
+          dayLabel.innerHTML = '';
+          dayLabel.style.display = 'none';
+        }
+      } else {
+        dayLabel.innerHTML = '';
+        dayLabel.style.display = 'none';
+      }
+    }
+
+    input.addEventListener('change', updateDayLabel);
+    input.addEventListener('input', updateDayLabel);
+    updateDayLabel(); // Initial run
+  });
 });
+
 

@@ -42,7 +42,7 @@ def schedule():
 
     if focus_date:
         range_filter = 'day'
-        range_label = f"Schedule for {focus_date.strftime('%d %b %Y')}"
+        range_label = f"Schedule for {focus_date.strftime('%A, %d %b %Y')}"
         query = ScheduleEntry.query.filter(ScheduleEntry.event_date == focus_date)
     else:
         if range_filter == '7d':

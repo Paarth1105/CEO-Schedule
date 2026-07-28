@@ -18,7 +18,7 @@
             <select name="schedule_entry_id">
                 <option value="">-- None (Just send regular notification) --</option>
                 {% for entry in ceo_schedules %}
-                <option value="{{ entry.id }}">{{ entry.event_date.strftime('%d %b %Y') }} at {{ entry.time }} - {{ entry.activity[:50] }}{% if entry.activity|length > 50 %}...{% endif %} ({{ entry.location }})</option>
+                <option value="{{ entry.id }}">{{ entry.event_date.strftime('%A, %d %b %Y') }} at {{ entry.time }} - {{ entry.activity[:50] }}{% if entry.activity|length > 50 %}...{% endif %} ({{ entry.location }})</option>
                 {% endfor %}
             </select>
         </label>

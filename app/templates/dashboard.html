@@ -59,7 +59,7 @@
             <tbody>
                 {% for entry in entries %}
                 <tr>
-                    <td>{{ entry.event_date.strftime('%d - %B - %Y') }}</td>
+                    <td>{{ entry.event_date.strftime('%A, %d - %B - %Y') }}</td>
                     <td>{{ entry.time }}</td>
                     <td><span class="chip {{ entry.priority|lower }}">{{ entry.priority }}</span></td>
                     <td>{{ entry.status }}</td>
@@ -94,7 +94,7 @@
             <tbody>
                 {% for entry in entries %}
                 <tr>
-                    <td>{{ entry.event_date.strftime('%d - %B - %Y') }}</td>
+                    <td>{{ entry.event_date.strftime('%A, %d - %B - %Y') }}</td>
                     <td>{{ entry.time }}</td>
                     <td>{{ entry.given_time or '-' }}</td>
                     <td>{{ entry.activity }}</td>
