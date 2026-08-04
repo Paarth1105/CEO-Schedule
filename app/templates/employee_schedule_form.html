@@ -56,6 +56,8 @@
         
         <label>Location</label>
         <input type="text" name="location" value="{{ entry.location if entry else 'Office' }}" required>
+        <label>Google Location (URL)</label>
+        <input type="url" name="google_location" value="{{ entry.google_location if entry else '' }}" placeholder="https://maps.google.com/...">
 
         <label>Priority</label>
         <select name="priority">

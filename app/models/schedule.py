@@ -12,6 +12,7 @@ class ScheduleEntry(db.Model):
     time = db.Column(db.String(20), nullable=False)
     activity = db.Column(db.String(200), nullable=False)
     location = db.Column(db.String(120), nullable=False)
+    google_location = db.Column(db.String(500), nullable=True)
     responsible_person = db.Column(db.String(120), nullable=False)
     priority = db.Column(db.String(40), nullable=False, default='Normal')
     status = db.Column(db.String(40), nullable=False, default='Planned')

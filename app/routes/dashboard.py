@@ -384,6 +384,7 @@ def new_employee_schedule():
 
         activity = request.form.get('activity', 'Personal Duty')
         location = request.form.get('location', 'Office')
+        google_location = request.form.get('google_location', '').strip()
         priority = request.form.get('priority', 'Normal')
         status = request.form.get('status', 'Planned')
         remark = request.form.get('remark', '')
@@ -395,6 +396,7 @@ def new_employee_schedule():
             time=time_value,
             activity=activity,
             location=location,
+            google_location=google_location,
             responsible_person=current_user.name,
             priority=priority,
             status=status,
@@ -445,6 +447,7 @@ def edit_employee_schedule(entry_id):
 
         entry.activity = request.form.get('activity', entry.activity)
         entry.location = request.form.get('location', entry.location)
+        entry.google_location = request.form.get('google_location', '').strip()
         entry.priority = request.form.get('priority', entry.priority)
         entry.status = request.form.get('status', entry.status)
         entry.remark = request.form.get('remark', entry.remark)

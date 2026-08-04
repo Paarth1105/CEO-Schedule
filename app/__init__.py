@@ -99,6 +99,9 @@ with app.app_context():
             if 'user_id' not in columns2:
                 db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN user_id INTEGER"))
                 modified2 = True
+            if 'google_location' not in columns2:
+                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN google_location TEXT"))
+                modified2 = True
             if modified2:
                 db.session.commit()
 

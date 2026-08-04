@@ -62,6 +62,7 @@ def new_schedule():
         time_value = f"{start_value} - {end_value}" if start_value and end_value else (start_value or end_value or '')
         activity = request.form['activity']
         location = request.form['location']
+        google_location = request.form.get('google_location', '').strip()
         responsible_person = request.form['responsible_person']
         priority = request.form['priority']
         status = request.form['status']
@@ -70,6 +71,7 @@ def new_schedule():
         given_time = request.form.get('given_time', '').strip()
 
         entry = ScheduleEntry(event_date=event_date, time=time_value, activity=activity, location=location,
+                              google_location=google_location,
                               responsible_person=responsible_person, priority=priority, status=status,
                               remark=remark, reschedule=reschedule, given_time=given_time)
         
@@ -107,6 +109,7 @@ def edit_schedule(entry_id):
         entry.time = f"{start_value} - {end_value}" if start_value and end_value else (start_value or end_value or entry.time)
         entry.activity = request.form['activity']
         entry.location = request.form['location']
+        entry.google_location = request.form.get('google_location', '').strip()
         entry.responsible_person = request.form['responsible_person']
         entry.priority = request.form['priority']
         entry.status = request.form['status']
