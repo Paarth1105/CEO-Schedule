@@ -17,7 +17,7 @@
             <div class="notif-sender">From: <strong>{{ notif.sender.name }}</strong> ({{ notif.sender.role }})</div>
             <div class="notif-message">{{ notif.message }}</div>
             <div class="notif-time">
-                <span class="notif-time-label">Time Needed</span>
+                <span class="notif-time-label">{% if notif.schedule_entry_id %}Event Time{% else %}Time Needed{% endif %}</span>
                 <span class="notif-time-value">{{ notif.time_needed }}</span>
             </div>
             <form action="{{ url_for('dashboard.acknowledge_notification', notif_id=notif.id) }}" method="post" class="notif-ack-form">

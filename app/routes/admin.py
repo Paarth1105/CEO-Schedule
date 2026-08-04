@@ -229,3 +229,50 @@ def delete_user(user_id):
     db.session.commit()
     flash(f'User {user.name} has been deleted.', 'success')
     return redirect(url_for('admin.manage_users'))
+
+
+@admin_bp.route('/admin/schedule/<int:entry_id>/notify', methods=['GET', 'POST'])
+@admin_required
+def notify_attendants(entry_id):
+    from app.models.notification import Notification
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    attendants = entry.attendants
+    
+    if not attendants:
+        flash('No attendants are assigned to this activity to notify.', 'warning')
+        return redirect(url_for('dashboard.schedule'))
+        
+    sender_id = session.get('user_id')
+    sender = User.query.get(sender_id)
+    
+    notified_count = 0
+    for attendant in attendants:
+        # Check if they already have an unread notification for this schedule entry to avoid duplicate spams
+        existing = Notification.query.filter_by(
+            user_id=attendant.id,
+            schedule_entry_id=entry.id,
+            acknowledged=False
+        ).first()
+        
+        if existing:
+            continue
+            
+        notif = Notification(
+            user_id=attendant.id,
+            sender_id=sender.id,
+            message=f"Activity: {entry.activity} at {entry.location}",
+            time_needed=f"{entry.event_date.strftime('%A, %d - %B - %Y')} at {entry.time}",
+            acknowledged=False,
+            schedule_entry_id=entry.id
+        )
+        db.session.add(notif)
+        notified_count += 1
+        
+    if notified_count > 0:
+        db.session.commit()
+        flash(f'Notification sent to {notified_count} attendant(s) successfully.', 'success')
+    else:
+        flash('All attendants have already been notified about this activity.', 'info')
+        
+    return redirect(url_for('dashboard.schedule'))
+

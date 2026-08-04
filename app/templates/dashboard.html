@@ -165,7 +165,13 @@
                             {% endif %}
                         </div>
                     </td>
-                    {% if current_user.is_admin_role() %}<td><a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a></td>{% endif %}
+                    {% if current_user.is_admin_role() %}
+                    <td>
+                        <a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a>
+                        <span style="color: var(--border);">|</span>
+                        <a class="inline-link" href="{{ url_for('admin.notify_attendants', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to notify all attendants?');">Notify</a>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% else %}
                 <tr><td colspan="{% if current_user.is_admin_role() %}13{% else %}12{% endif %}" class="empty-state">No schedule entries available for this range.</td></tr>
