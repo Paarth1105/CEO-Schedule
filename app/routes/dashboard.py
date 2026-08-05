@@ -1,11 +1,21 @@
 from datetime import datetime, date, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+import json
+import io
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, send_file, Response
 from sqlalchemy import or_
 from app import db
 from app.models.schedule import ScheduleEntry
 from app.models.request import RequestMessage
 from app.models.user import User
 from app.models.notification import Notification
+from app.models.agenda_mom import Agenda, MOM
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -664,3 +674,702 @@ def toggle_user_attendance(entry_id, user_id):
         'user_id': target_user.id,
         'attendants': [u.name for u in entry.attendants]
     })
+
+
+# -------------------------------------------------------------
+# AGENDA & MOM MODULES
+# -------------------------------------------------------------
+
+import re
+
+def get_safe_filename(prefix, event_date, activity_name, extension):
+    if hasattr(event_date, 'strftime'):
+        date_str = event_date.strftime('%Y-%m-%d')
+    else:
+        date_str = str(event_date).strip()
+    
+    clean_activity = re.sub(r'[^a-zA-Z0-9_\-]', '_', activity_name)
+    clean_activity = re.sub(r'_+', '_', clean_activity).strip('_')
+    if not clean_activity:
+        clean_activity = "activity"
+        
+    return f"{prefix}_{date_str}_{clean_activity}.{extension}"
+
+
+def format_text_for_pdf(text):
+    if not text:
+        return ""
+    text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return text.replace('\n', '<br/>')
+
+
+def format_text_for_word(text):
+    if not text:
+        return ""
+    text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return text.replace('\n', '<br/>')
+
+
+def make_agenda_word_html(agenda):
+    rows = []
+    if agenda.schedule_table:
+        try:
+            rows = json.loads(agenda.schedule_table)
+        except Exception:
+            pass
+            
+    table_rows_html = ""
+    for r in rows:
+        table_rows_html += f"""
+        <tr>
+            <td style="width: 25%;">{format_text_for_word(r.get('time', ''))}</td>
+            <td style="width: 50%;">{format_text_for_word(r.get('activity', ''))}</td>
+            <td style="width: 25%;">{format_text_for_word(r.get('presenter', ''))}</td>
+        </tr>
+        """
+        
+    html = f"""
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+    <meta charset="utf-8">
+    <title>{agenda.title or "Meeting Agenda"}</title>
+    <!--[if gte mso 9]>
+    <xml>
+      <w:WordDocument>
+        <w:View>Print</w:View>
+        <w:Zoom>100</w:Zoom>
+      </w:WordDocument>
+    </xml>
+    <![endif]-->
+    <style>
+      body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #15253d; margin: 1in; }}
+      h1 {{ color: #123a6b; font-size: 20pt; text-align: center; margin-bottom: 20pt; }}
+      h2 {{ color: #123a6b; font-size: 14pt; border-bottom: 2px solid #123a6b; padding-bottom: 3pt; margin-top: 20pt; margin-bottom: 10pt; }}
+      table {{ width: 100%; border-collapse: collapse; margin-top: 10pt; margin-bottom: 10pt; }}
+      th, td {{ border: 1px solid #dce6f1; padding: 8pt; text-align: left; vertical-align: top; font-size: 10pt; }}
+      th {{ background-color: #f3f6fb; font-weight: bold; color: #123a6b; }}
+      .meta-table {{ margin-bottom: 15pt; }}
+      .meta-table td {{ border: none; padding: 4pt 0; }}
+      .meta-label {{ font-weight: bold; width: 120pt; color: #5f6f86; }}
+      .text-block {{ line-height: 1.5; font-size: 10pt; }}
+    </style>
+    </head>
+    <body>
+      <h1>{agenda.title or "Meeting Agenda"}</h1>
+      
+      <table class="meta-table">
+        <tr><td class="meta-label">Date:</td><td>{format_text_for_word(agenda.event_date or "-")}</td></tr>
+        <tr><td class="meta-label">Time:</td><td>{format_text_for_word(agenda.time or "-")}</td></tr>
+        <tr><td class="meta-label">Location:</td><td>{format_text_for_word(agenda.location or "-")}</td></tr>
+        <tr><td class="meta-label">Chairperson:</td><td>{format_text_for_word(agenda.chairperson or "-")}</td></tr>
+        <tr><td class="meta-label">Attendants:</td><td>{format_text_for_word(agenda.attendants or "-")}</td></tr>
+      </table>
+      
+      <h2>1. Objective of Meeting</h2>
+      <div class="text-block">{format_text_for_word(agenda.objective or "No objective specified.")}</div>
+      
+      <h2>2. Schedule of Activity / Meeting</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25%;">Time</th>
+            <th style="width: 50%;">Activity / Topic</th>
+            <th style="width: 25%;">Presenter / Responsible</th>
+          </tr>
+        </thead>
+        <tbody>
+          {table_rows_html or "<tr><td colspan='3'>None</td></tr>"}
+        </tbody>
+      </table>
+      
+      <h2>3. Follow-Ups of Previous MOM & Tasks</h2>
+      <div class="text-block">{format_text_for_word(agenda.follow_ups or "None")}</div>
+      
+      <h2>4. Tasks to be Done</h2>
+      <div class="text-block">{format_text_for_word(agenda.tasks or "None")}</div>
+    </body>
+    </html>
+    """
+    return html
+
+
+def make_mom_word_html(mom):
+    rows = []
+    if mom.mom_table:
+        try:
+            rows = json.loads(mom.mom_table)
+        except Exception:
+            pass
+            
+    table_rows_html = ""
+    for r in rows:
+        table_rows_html += f"""
+        <tr>
+            <td style="width: 8%; text-align: center;">{r.get('sr_no', '')}</td>
+            <td style="width: 22%;">{format_text_for_word(r.get('topic', ''))}</td>
+            <td style="width: 35%;">{format_text_for_word(r.get('points', ''))}</td>
+            <td style="width: 20%;">{format_text_for_word(r.get('actionable', ''))}</td>
+            <td style="width: 15%;">{format_text_for_word(r.get('responsibility', ''))}</td>
+        </tr>
+        """
+        
+    html = f"""
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+    <meta charset="utf-8">
+    <title>Minutes of Meeting (MOM)</title>
+    <!--[if gte mso 9]>
+    <xml>
+      <w:WordDocument>
+        <w:View>Print</w:View>
+        <w:Zoom>100</w:Zoom>
+      </w:WordDocument>
+    </xml>
+    <![endif]-->
+    <style>
+      body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #15253d; margin: 1in; }}
+      h1 {{ color: #123a6b; font-size: 20pt; text-align: center; margin-bottom: 20pt; }}
+      h2 {{ color: #123a6b; font-size: 14pt; border-bottom: 2px solid #123a6b; padding-bottom: 3pt; margin-top: 20pt; margin-bottom: 10pt; }}
+      table {{ width: 100%; border-collapse: collapse; margin-top: 10pt; margin-bottom: 10pt; }}
+      th, td {{ border: 1px solid #dce6f1; padding: 8pt; text-align: left; vertical-align: top; font-size: 10pt; }}
+      th {{ background-color: #f3f6fb; font-weight: bold; color: #123a6b; }}
+      .meta-table {{ margin-bottom: 15pt; }}
+      .meta-table td {{ border: none; padding: 4pt 0; }}
+      .meta-label {{ font-weight: bold; width: 120pt; color: #5f6f86; }}
+      .text-block {{ line-height: 1.5; font-size: 10pt; }}
+    </style>
+    </head>
+    <body>
+      <h1>Minutes of Meeting (MOM)</h1>
+      
+      <table class="meta-table">
+        <tr><td class="meta-label">Meeting Date:</td><td>{format_text_for_word(mom.meeting_date or "-")}</td></tr>
+        <tr><td class="meta-label">Time:</td><td>{format_text_for_word(mom.time or "-")}</td></tr>
+        <tr><td class="meta-label">Location:</td><td>{format_text_for_word(mom.location or "-")}</td></tr>
+        <tr><td class="meta-label">Meeting Agenda:</td><td>{format_text_for_word(mom.meeting_agenda or "-")}</td></tr>
+      </table>
+      
+      <h2>Discussion Details</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 8%; text-align: center;">Sr.No</th>
+            <th style="width: 22%;">Topic</th>
+            <th style="width: 35%;">Points Discussed</th>
+            <th style="width: 20%;">Actionable Items</th>
+            <th style="width: 15%;">Responsibility</th>
+          </tr>
+        </thead>
+        <tbody>
+          {table_rows_html or "<tr><td colspan='5' style='text-align: center;'>None</td></tr>"}
+        </tbody>
+      </table>
+    </body>
+    </html>
+    """
+    return html
+
+
+def generate_agenda_pdf_data(agenda):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+    story = []
+    
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor('#123a6b'),
+        alignment=1, # Center
+        spaceAfter=15
+    )
+    
+    section_style = ParagraphStyle(
+        'DocSection',
+        parent=styles['Heading2'],
+        fontSize=12,
+        leading=16,
+        textColor=colors.HexColor('#123a6b'),
+        spaceBefore=12,
+        spaceAfter=6
+    )
+    
+    body_style = ParagraphStyle(
+        'DocBody',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor('#15253d')
+    )
+
+    story.append(Paragraph(format_text_for_pdf(agenda.title or "Meeting Agenda"), title_style))
+    story.append(Spacer(1, 10))
+    
+    meta_data = [
+        [Paragraph("<b>Date:</b>", body_style), Paragraph(format_text_for_pdf(agenda.event_date or "-"), body_style)],
+        [Paragraph("<b>Time:</b>", body_style), Paragraph(format_text_for_pdf(agenda.time or "-"), body_style)],
+        [Paragraph("<b>Location:</b>", body_style), Paragraph(format_text_for_pdf(agenda.location or "-"), body_style)],
+        [Paragraph("<b>Chairperson:</b>", body_style), Paragraph(format_text_for_pdf(agenda.chairperson or "-"), body_style)],
+        [Paragraph("<b>Attendants:</b>", body_style), Paragraph(format_text_for_pdf(agenda.attendants or "-"), body_style)]
+    ]
+    
+    meta_table = Table(meta_data, colWidths=[100, 420])
+    meta_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#dce6f1')),
+    ]))
+    
+    story.append(meta_table)
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("1. Objective of Meeting", section_style))
+    story.append(Paragraph(format_text_for_pdf(agenda.objective or "No objective specified."), body_style))
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("2. Schedule of Activity / Meeting", section_style))
+    
+    sched_data = [[
+        Paragraph("<b>Time</b>", body_style),
+        Paragraph("<b>Activity / Topic</b>", body_style),
+        Paragraph("<b>Presenter / Responsible</b>", body_style)
+    ]]
+    
+    rows = []
+    if agenda.schedule_table:
+        try:
+            rows = json.loads(agenda.schedule_table)
+        except Exception:
+            pass
+            
+    if not rows:
+        sched_data.append([Paragraph("-", body_style), Paragraph("-", body_style), Paragraph("-", body_style)])
+    else:
+        for r in rows:
+            sched_data.append([
+                Paragraph(format_text_for_pdf(r.get('time', '')), body_style),
+                Paragraph(format_text_for_pdf(r.get('activity', '')), body_style),
+                Paragraph(format_text_for_pdf(r.get('presenter', '')), body_style)
+            ])
+            
+    sched_table = Table(sched_data, colWidths=[120, 260, 140])
+    sched_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f3f6fb')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dce6f1')),
+    ]))
+    story.append(sched_table)
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("3. Follow-Ups of Previous MOM & Tasks", section_style))
+    story.append(Paragraph(format_text_for_pdf(agenda.follow_ups or "None"), body_style))
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("4. Tasks to be Done", section_style))
+    story.append(Paragraph(format_text_for_pdf(agenda.tasks or "None"), body_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generate_mom_excel_data(mom):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Minutes of Meeting"
+    
+    title_font = Font(name='Segoe UI', size=16, bold=True, color='123A6B')
+    header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+    bold_font = Font(name='Segoe UI', size=11, bold=True)
+    regular_font = Font(name='Segoe UI', size=11)
+    
+    header_fill = PatternFill(start_color='123A6B', end_color='123A6B', fill_type='solid')
+    
+    thin_side = Side(border_style="thin", color="DCE6F1")
+    border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+    
+    ws.merge_cells('A1:E1')
+    ws['A1'] = "MINUTES OF MEETING"
+    ws['A1'].font = title_font
+    ws['A1'].alignment = Alignment(horizontal='center')
+    ws.row_dimensions[1].height = 30
+    
+    meta_rows = [
+        ("Meeting Date:", mom.meeting_date or "-"),
+        ("Time:", mom.time or "-"),
+        ("Location:", mom.location or "-"),
+        ("Meeting Agenda:", mom.meeting_agenda or "-")
+    ]
+    
+    curr_row = 3
+    for label, val in meta_rows:
+        ws.cell(row=curr_row, column=1, value=label).font = bold_font
+        ws.cell(row=curr_row, column=2, value=val).font = regular_font
+        ws.merge_cells(start_row=curr_row, start_column=2, end_row=curr_row, end_column=5)
+        curr_row += 1
+        
+    curr_row += 1
+    
+    headers = ["Sr.No", "Topic", "Points Discussed", "Actionable Items", "Responsibility"]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=curr_row, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = border_all
+        
+    ws.row_dimensions[curr_row].height = 25
+    
+    rows = []
+    if mom.mom_table:
+        try:
+            rows = json.loads(mom.mom_table)
+        except Exception:
+            pass
+            
+    for r in rows:
+        curr_row += 1
+        ws.cell(row=curr_row, column=1, value=r.get('sr_no', '')).alignment = Alignment(horizontal='center')
+        ws.cell(row=curr_row, column=2, value=r.get('topic', ''))
+        ws.cell(row=curr_row, column=3, value=r.get('points', ''))
+        ws.cell(row=curr_row, column=4, value=r.get('actionable', ''))
+        ws.cell(row=curr_row, column=5, value=r.get('responsibility', ''))
+        
+        for col_idx in range(1, 6):
+            cell = ws.cell(row=curr_row, column=col_idx)
+            cell.font = regular_font
+            cell.border = border_all
+            cell.alignment = Alignment(vertical='top', wrap_text=True)
+            
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 40
+    ws.column_dimensions['D'].width = 30
+    ws.column_dimensions['E'].width = 20
+    
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+@dashboard_bp.route('/agenda/<int:entry_id>/edit', methods=['GET', 'POST'])
+@login_required
+def agenda_edit(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first()
+    
+    if not agenda:
+        # Prepopulate default values
+        title = f"Agenda: {entry.activity}"
+        event_date = entry.event_date.strftime('%Y-%m-%d')
+        time = entry.time or ""
+        location = entry.location or ""
+        chairperson = entry.responsible_person or ""
+        attendants = ", ".join([u.name for u in entry.attendants])
+        
+        objective = f"The objective of this meeting is to discuss and coordinate on the activity: '{entry.activity}'."
+        if entry.remark:
+            objective += f" Additional context/remark: {entry.remark}."
+            
+        default_sched = [{"time": entry.time or "", "activity": entry.activity or "", "presenter": entry.responsible_person or ""}]
+        schedule_table = json.dumps(default_sched)
+        
+        agenda = Agenda(
+            schedule_entry_id=entry_id,
+            title=title,
+            event_date=event_date,
+            time=time,
+            location=location,
+            chairperson=chairperson,
+            attendants=attendants,
+            objective=objective,
+            schedule_table=schedule_table,
+            follow_ups="",
+            tasks=""
+        )
+    
+    if request.method == 'POST':
+        agenda.title = request.form.get('title', '').strip()
+        agenda.event_date = request.form.get('event_date', '').strip()
+        agenda.time = request.form.get('time', '').strip()
+        agenda.location = request.form.get('location', '').strip()
+        agenda.chairperson = request.form.get('chairperson', '').strip()
+        agenda.attendants = request.form.get('attendants', '').strip()
+        agenda.objective = request.form.get('objective', '').strip()
+        agenda.follow_ups = request.form.get('follow_ups', '').strip()
+        agenda.tasks = request.form.get('tasks', '').strip()
+        
+        # Parse dynamic schedule table rows
+        times = request.form.getlist('sched_time[]')
+        activities = request.form.getlist('sched_activity[]')
+        presenters = request.form.getlist('sched_presenter[]')
+        
+        sched_rows = []
+        for t, a, p in zip(times, activities, presenters):
+            if t.strip() or a.strip() or p.strip():
+                sched_rows.append({
+                    'time': t.strip(),
+                    'activity': a.strip(),
+                    'presenter': p.strip()
+                })
+        agenda.schedule_table = json.dumps(sched_rows)
+        
+        if not agenda.id:
+            db.session.add(agenda)
+            
+        db.session.commit()
+        flash('Agenda saved successfully.', 'success')
+        return redirect(url_for('dashboard.agenda_view', entry_id=entry_id))
+        
+    schedule_rows = []
+    if agenda.schedule_table:
+        try:
+            schedule_rows = json.loads(agenda.schedule_table)
+        except Exception:
+            pass
+            
+    return render_template('agenda_form.html', entry=entry, agenda=agenda, schedule_rows=schedule_rows)
+
+
+@dashboard_bp.route('/agenda/<int:entry_id>/view', methods=['GET', 'POST'])
+@login_required
+def agenda_view(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first()
+    
+    if not agenda:
+        flash('No agenda found for this activity. Please fill it first.', 'warning')
+        return redirect(url_for('dashboard.agenda_edit', entry_id=entry_id))
+        
+    if request.method == 'POST':
+        # Direct editing from View page
+        agenda.title = request.form.get('title', '').strip()
+        agenda.event_date = request.form.get('event_date', '').strip()
+        agenda.time = request.form.get('time', '').strip()
+        agenda.location = request.form.get('location', '').strip()
+        agenda.chairperson = request.form.get('chairperson', '').strip()
+        agenda.attendants = request.form.get('attendants', '').strip()
+        agenda.objective = request.form.get('objective', '').strip()
+        agenda.follow_ups = request.form.get('follow_ups', '').strip()
+        agenda.tasks = request.form.get('tasks', '').strip()
+        
+        times = request.form.getlist('sched_time[]')
+        activities = request.form.getlist('sched_activity[]')
+        presenters = request.form.getlist('sched_presenter[]')
+        
+        sched_rows = []
+        for t, a, p in zip(times, activities, presenters):
+            if t.strip() or a.strip() or p.strip():
+                sched_rows.append({
+                    'time': t.strip(),
+                    'activity': a.strip(),
+                    'presenter': p.strip()
+                })
+        agenda.schedule_table = json.dumps(sched_rows)
+        db.session.commit()
+        flash('Agenda updated successfully.', 'success')
+        return redirect(url_for('dashboard.agenda_view', entry_id=entry_id))
+        
+    schedule_rows = []
+    if agenda.schedule_table:
+        try:
+            schedule_rows = json.loads(agenda.schedule_table)
+        except Exception:
+            pass
+            
+    return render_template('agenda_view.html', entry=entry, agenda=agenda, schedule_rows=schedule_rows)
+
+
+@dashboard_bp.route('/agenda/<int:entry_id>/pdf')
+@login_required
+def agenda_pdf(entry_id):
+    agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first_or_404()
+    entry = agenda.schedule_entry
+    pdf_bytes = generate_agenda_pdf_data(agenda)
+    filename = get_safe_filename("Agenda", entry.event_date, entry.activity, "pdf")
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@dashboard_bp.route('/agenda/<int:entry_id>/word')
+@login_required
+def agenda_word(entry_id):
+    agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first_or_404()
+    entry = agenda.schedule_entry
+    word_html = make_agenda_word_html(agenda)
+    filename = get_safe_filename("Agenda", entry.event_date, entry.activity, "doc")
+    return Response(
+        word_html,
+        mimetype="application/msword",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@dashboard_bp.route('/mom/<int:entry_id>/edit', methods=['GET', 'POST'])
+@login_required
+def mom_edit(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    mom = MOM.query.filter_by(schedule_entry_id=entry_id).first()
+    
+    if not mom:
+        # Prepopulate default values
+        meeting_date = entry.event_date.strftime('%d/%m/%Y')
+        time = entry.time or ""
+        location = entry.location or ""
+        
+        # Try to load Agenda objective as meeting agenda
+        agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first()
+        if agenda and agenda.objective:
+            meeting_agenda = agenda.objective
+        else:
+            meeting_agenda = f"Discussion regarding activity: {entry.activity}"
+            
+        default_mom = [{"sr_no": "1", "topic": entry.activity or "", "points": "", "actionable": "", "responsibility": entry.responsible_person or ""}]
+        mom_table = json.dumps(default_mom)
+        
+        mom = MOM(
+            schedule_entry_id=entry_id,
+            meeting_date=meeting_date,
+            time=time,
+            location=location,
+            meeting_agenda=meeting_agenda,
+            mom_table=mom_table
+        )
+        
+    if request.method == 'POST':
+        mom.meeting_date = request.form.get('meeting_date', '').strip()
+        mom.time = request.form.get('time', '').strip()
+        mom.location = request.form.get('location', '').strip()
+        mom.meeting_agenda = request.form.get('meeting_agenda', '').strip()
+        
+        # Parse dynamic Discussion chart
+        sr_nos = request.form.getlist('mom_sr_no[]')
+        topics = request.form.getlist('mom_topic[]')
+        points = request.form.getlist('mom_points[]')
+        actionables = request.form.getlist('mom_actionable[]')
+        responsibilities = request.form.getlist('mom_responsibility[]')
+        
+        mom_rows = []
+        for s, t, p, a, r in zip(sr_nos, topics, points, actionables, responsibilities):
+            if s.strip() or t.strip() or p.strip() or a.strip() or r.strip():
+                mom_rows.append({
+                    'sr_no': s.strip(),
+                    'topic': t.strip(),
+                    'points': p.strip(),
+                    'actionable': a.strip(),
+                    'responsibility': r.strip()
+                })
+        mom.mom_table = json.dumps(mom_rows)
+        
+        if not mom.id:
+            db.session.add(mom)
+            
+        db.session.commit()
+        flash('MOM saved successfully.', 'success')
+        return redirect(url_for('dashboard.mom_view', entry_id=entry_id))
+        
+    mom_rows = []
+    if mom.mom_table:
+        try:
+            mom_rows = json.loads(mom.mom_table)
+        except Exception:
+            pass
+            
+    return render_template('mom_form.html', entry=entry, mom=mom, mom_rows=mom_rows)
+
+
+@dashboard_bp.route('/mom/<int:entry_id>/view', methods=['GET', 'POST'])
+@login_required
+def mom_view(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    mom = MOM.query.filter_by(schedule_entry_id=entry_id).first()
+    
+    if not mom:
+        flash('No MOM found for this activity. Please fill it first.', 'warning')
+        return redirect(url_for('dashboard.mom_edit', entry_id=entry_id))
+        
+    if request.method == 'POST':
+        # Direct editing from View page
+        mom.meeting_date = request.form.get('meeting_date', '').strip()
+        mom.time = request.form.get('time', '').strip()
+        mom.location = request.form.get('location', '').strip()
+        mom.meeting_agenda = request.form.get('meeting_agenda', '').strip()
+        
+        sr_nos = request.form.getlist('mom_sr_no[]')
+        topics = request.form.getlist('mom_topic[]')
+        points = request.form.getlist('mom_points[]')
+        actionables = request.form.getlist('mom_actionable[]')
+        responsibilities = request.form.getlist('mom_responsibility[]')
+        
+        mom_rows = []
+        for s, t, p, a, r in zip(sr_nos, topics, points, actionables, responsibilities):
+            if s.strip() or t.strip() or p.strip() or a.strip() or r.strip():
+                mom_rows.append({
+                    'sr_no': s.strip(),
+                    'topic': t.strip(),
+                    'points': p.strip(),
+                    'actionable': a.strip(),
+                    'responsibility': r.strip()
+                })
+        mom.mom_table = json.dumps(mom_rows)
+        db.session.commit()
+        flash('MOM updated successfully.', 'success')
+        return redirect(url_for('dashboard.mom_view', entry_id=entry_id))
+        
+    mom_rows = []
+    if mom.mom_table:
+        try:
+            mom_rows = json.loads(mom.mom_table)
+        except Exception:
+            pass
+            
+    return render_template('mom_view.html', entry=entry, mom=mom, mom_rows=mom_rows)
+
+
+@dashboard_bp.route('/mom/<int:entry_id>/word')
+@login_required
+def mom_word(entry_id):
+    mom = MOM.query.filter_by(schedule_entry_id=entry_id).first_or_404()
+    entry = mom.schedule_entry
+    word_html = make_mom_word_html(mom)
+    filename = get_safe_filename("MOM", entry.event_date, entry.activity, "doc")
+    return Response(
+        word_html,
+        mimetype="application/msword",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@dashboard_bp.route('/mom/<int:entry_id>/excel')
+@login_required
+def mom_excel(entry_id):
+    mom = MOM.query.filter_by(schedule_entry_id=entry_id).first_or_404()
+    entry = mom.schedule_entry
+    excel_bytes = generate_mom_excel_data(mom)
+    filename = get_safe_filename("MOM", entry.event_date, entry.activity, "xlsx")
+    return Response(
+        excel_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+

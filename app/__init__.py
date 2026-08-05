@@ -67,8 +67,10 @@ def inject_common_context():
 
 from app.models.user import User
 from app.models.schedule import ScheduleEntry
+from app.models.agenda_mom import Agenda, MOM
 from app.models.request import RequestMessage
 from app.models.notification import Notification
+
 
 with app.app_context():
     db.create_all()

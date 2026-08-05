@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto; padding: 30px;">
+    <!-- Document Header Actions -->
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom: 15px; margin-bottom: 25px;">
+        <h2 style="margin: 0; color: var(--primary); display: flex; align-items: center; gap: 10px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Meeting Agenda
+        </h2>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <a href="{{ url_for('dashboard.schedule') }}" class="btn" style="background: transparent; border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 6px; text-decoration: none;">← Dashboard</a>
+            <a href="{{ url_for('dashboard.agenda_pdf', entry_id=entry.id) }}" class="btn" style="background: #e74c3c; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+                Download PDF
+            </a>
+            <a href="{{ url_for('dashboard.agenda_word', entry_id=entry.id) }}" class="btn" style="background: #2b579a; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+                Download Word
+            </a>
+        </div>
+    </div>
+    
+    <!-- Editable Form Container -->
+    <form method="post" action="{{ url_for('dashboard.agenda_view', entry_id=entry.id) }}">
+        <div style="background: var(--surface-alt); border-radius: 8px; padding: 20px; border: 1px solid var(--border); margin-bottom: 25px;">
+            <div style="margin-bottom: 15px;">
+                <label style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: bold;">Document Title</label>
+                <input type="text" name="title" value="{{ agenda.title or '' }}" required style="width: 100%; font-size: 1.25rem; font-weight: bold; border: 1px solid transparent; background: transparent; padding: 5px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div>
+                    <label style="font-size: 0.8rem; color: var(--muted); font-weight: bold; display: block;">Date</label>
+                    <input type="text" name="event_date" value="{{ agenda.event_date or '' }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 5px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                </div>
+                <div>
+                    <label style="font-size: 0.8rem; color: var(--muted); font-weight: bold; display: block;">Time</label>
+                    <input type="text" name="time" value="{{ agenda.time or '' }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 5px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                </div>
+                <div>
+                    <label style="font-size: 0.8rem; color: var(--muted); font-weight: bold; display: block;">Location</label>
+                    <input type="text" name="location" value="{{ agenda.location or '' }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 5px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                </div>
+                <div>
+                    <label style="font-size: 0.8rem; color: var(--muted); font-weight: bold; display: block;">Chairperson</label>
+                    <input type="text" name="chairperson" value="{{ agenda.chairperson or '' }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 5px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <label style="font-size: 0.8rem; color: var(--muted); font-weight: bold; display: block;">Attendants</label>
+                <input type="text" name="attendants" value="{{ agenda.attendants or '' }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 5px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+            </div>
+        </div>
+        
+        <!-- Objective Section -->
+        <div style="margin-bottom: 25px;">
+            <h3 style="color: var(--primary); font-size: 1.1rem; border-left: 4px solid var(--primary); padding-left: 10px; margin-bottom: 10px;">1) Objective of Meeting</h3>
+            <textarea name="objective" rows="4" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); font-family: inherit; font-size: 1rem; line-height: 1.5; resize: vertical; border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">{{ agenda.objective or '' }}</textarea>
+        </div>
+        
+        <!-- Schedule Section -->
+        <div style="margin-bottom: 25px;">
+            <h3 style="color: var(--primary); font-size: 1.1rem; border-left: 4px solid var(--primary); padding-left: 10px; margin-bottom: 15px;">2) Schedule of Activity / Meeting</h3>
+            <div class="table-wrap" style="overflow-x: auto; border: 1px solid var(--border); border-radius: 6px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: var(--surface-alt);">
+                            <th style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border); width: 25%;">Time</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border); width: 50%;">Activity / Topic</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border); width: 25%;">Presenter</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 1px solid var(--border); width: 5%;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedule-tbody">
+                        {% for row in schedule_rows %}
+                        <tr>
+                            <td style="padding: 4px; border-bottom: 1px solid var(--border);">
+                                <input type="text" name="sched_time[]" value="{{ row.time }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                            </td>
+                            <td style="padding: 4px; border-bottom: 1px solid var(--border);">
+                                <input type="text" name="sched_activity[]" value="{{ row.activity }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                            </td>
+                            <td style="padding: 4px; border-bottom: 1px solid var(--border);">
+                                <input type="text" name="sched_presenter[]" value="{{ row.presenter }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                            </td>
+                            <td style="padding: 4px; border-bottom: 1px solid var(--border); text-align: center;">
+                                <button type="button" onclick="removeRow(this)" style="background: transparent; color: var(--danger); border: none; cursor: pointer; font-size: 1.1rem; padding: 4px 8px;">×</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 10px;">
+                <button type="button" onclick="addRow()" style="background: transparent; color: var(--primary); border: 1px dashed var(--primary); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">+ Add Row</button>
+            </div>
+        </div>
+        
+        <!-- Follow Ups -->
+        <div style="margin-bottom: 25px;">
+            <h3 style="color: var(--primary); font-size: 1.1rem; border-left: 4px solid var(--primary); padding-left: 10px; margin-bottom: 10px;">3) Follow-Ups of Previous MOM & Tasks</h3>
+            <textarea name="follow_ups" rows="3" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); font-family: inherit; font-size: 1rem; line-height: 1.5; resize: vertical; border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">{{ agenda.follow_ups or '' }}</textarea>
+        </div>
+        
+        <!-- Tasks -->
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: var(--primary); font-size: 1.1rem; border-left: 4px solid var(--primary); padding-left: 10px; margin-bottom: 10px;">4) Tasks to be Done</h3>
+            <textarea name="tasks" rows="3" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); font-family: inherit; font-size: 1rem; line-height: 1.5; resize: vertical; border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">{{ agenda.tasks or '' }}</textarea>
+        </div>
+        
+        <!-- Bottom Actions -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 20px;">
+            <span style="font-size: 0.85rem; color: var(--muted); font-style: italic;">💡 Click on any text above to edit it directly.</span>
+            <div style="display: flex; gap: 10px;">
+                <a href="{{ url_for('dashboard.agenda_edit', entry_id=entry.id) }}" class="btn" style="background: transparent; border: 1px solid var(--border); color: var(--text); padding: 10px 20px; border-radius: 6px; text-decoration: none;">Detailed Form</a>
+                <button type="submit" style="padding: 10px 24px; background: var(--success); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Save Changes</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function addRow() {
+    const tbody = document.getElementById('schedule-tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td style="padding: 4px; border-bottom: 1px solid var(--border);">
+            <input type="text" name="sched_time[]" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+        </td>
+        <td style="padding: 4px; border-bottom: 1px solid var(--border);">
+            <input type="text" name="sched_activity[]" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+        </td>
+        <td style="padding: 4px; border-bottom: 1px solid var(--border);">
+            <input type="text" name="sched_presenter[]" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+        </td>
+        <td style="padding: 4px; border-bottom: 1px solid var(--border); text-align: center;">
+            <button type="button" onclick="removeRow(this)" style="background: transparent; color: var(--danger); border: none; cursor: pointer; font-size: 1.1rem; padding: 4px 8px;">×</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    tr.querySelector('input').focus();
+}
+
+function removeRow(btn) {
+    btn.closest('tr').remove();
+}
+</script>
+{% endblock %}

@@ -71,20 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Check headers for "Action" column and filter it out
-    const headers = Array.from(table.querySelectorAll('thead th'));
-    const actionIndex = headers.findIndex(th => th.innerText.trim() === 'Action');
-    if (actionIndex !== -1) {
-      // Remove Action header
-      headers[actionIndex].remove();
-      // Remove Action cell in each row
-      table.querySelectorAll('tbody tr').forEach(row => {
-        const cells = Array.from(row.querySelectorAll('td'));
-        if (cells[actionIndex]) {
-          cells[actionIndex].remove();
-        }
-      });
-    }
+    // Remove unwanted columns for downloadable content: Google Location, Agenda, MOM, Action
+    table.querySelectorAll('.col-google-location, .col-agenda, .col-mom, .col-action').forEach(el => el.remove());
 
     return table;
   }
