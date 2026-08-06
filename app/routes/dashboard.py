@@ -696,6 +696,225 @@ def get_safe_filename(prefix, event_date, activity_name, extension):
     return f"{prefix}_{date_str}_{clean_activity}.{extension}"
 
 
+def get_download_filename(prefix, date_val, extension):
+    if not date_val:
+        date_str = "no_date"
+    elif hasattr(date_val, 'strftime'):
+        date_str = date_val.strftime('%Y-%m-%d')
+    else:
+        date_str = str(date_val).strip()
+        date_str = re.sub(r'[^a-zA-Z0-9_\-]', '_', date_str)
+        date_str = re.sub(r'_+', '_', date_str).strip('_')
+        if not date_str:
+            date_str = "date"
+    return f"{prefix.lower()}_{date_str}.{extension}"
+
+
+def generate_mom_pdf_data(mom):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+    story = []
+    
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor('#123a6b'),
+        alignment=1, # Center
+        spaceAfter=15
+    )
+    
+    section_style = ParagraphStyle(
+        'DocSection',
+        parent=styles['Heading2'],
+        fontSize=12,
+        leading=16,
+        textColor=colors.HexColor('#123a6b'),
+        spaceBefore=12,
+        spaceAfter=6
+    )
+    
+    body_style = ParagraphStyle(
+        'DocBody',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor('#15253d')
+    )
+
+    story.append(Paragraph("Minutes of Meeting (MOM)", title_style))
+    story.append(Spacer(1, 10))
+    
+    meta_data = [
+        [Paragraph("<b>Meeting Date:</b>", body_style), Paragraph(format_text_for_pdf(mom.meeting_date or "-"), body_style)],
+        [Paragraph("<b>Time:</b>", body_style), Paragraph(format_text_for_pdf(mom.time or "-"), body_style)],
+        [Paragraph("<b>Location:</b>", body_style), Paragraph(format_text_for_pdf(mom.location or "-"), body_style)],
+        [Paragraph("<b>Meeting Agenda:</b>", body_style), Paragraph(format_text_for_pdf(mom.meeting_agenda or "-"), body_style)]
+    ]
+    
+    meta_table = Table(meta_data, colWidths=[100, 420])
+    meta_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#dce6f1')),
+    ]))
+    
+    story.append(meta_table)
+    story.append(Spacer(1, 10))
+    
+    story.append(Paragraph("Discussion Details", section_style))
+    
+    mom_data = [[
+        Paragraph("<b>Sr.No</b>", body_style),
+        Paragraph("<b>Topic</b>", body_style),
+        Paragraph("<b>Points Discussed</b>", body_style),
+        Paragraph("<b>Actionable Items</b>", body_style),
+        Paragraph("<b>Responsibility</b>", body_style)
+    ]]
+    
+    rows = []
+    if mom.mom_table:
+        try:
+            rows = json.loads(mom.mom_table)
+        except Exception:
+            pass
+            
+    if not rows:
+        mom_data.append([Paragraph("-", body_style), Paragraph("-", body_style), Paragraph("-", body_style), Paragraph("-", body_style), Paragraph("-", body_style)])
+    else:
+        for r in rows:
+            sr_no = r.get('sr_no', '')
+            if sr_no and "Agenda" not in str(sr_no):
+                sr_no = f"Agenda {sr_no}"
+            mom_data.append([
+                Paragraph(format_text_for_pdf(sr_no), body_style),
+                Paragraph(format_text_for_pdf(r.get('topic', '')), body_style),
+                Paragraph(format_text_for_pdf(r.get('points', '')), body_style),
+                Paragraph(format_text_for_pdf(r.get('actionable', '')), body_style),
+                Paragraph(format_text_for_pdf(r.get('responsibility', '')), body_style)
+            ])
+            
+    mom_table_obj = Table(mom_data, colWidths=[65, 110, 165, 110, 70])
+    mom_table_obj.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f3f6fb')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dce6f1')),
+    ]))
+    story.append(mom_table_obj)
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generate_agenda_excel_data(agenda):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Meeting Agenda"
+    
+    title_font = Font(name='Segoe UI', size=16, bold=True, color='123A6B')
+    header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+    bold_font = Font(name='Segoe UI', size=11, bold=True)
+    regular_font = Font(name='Segoe UI', size=11)
+    
+    header_fill = PatternFill(start_color='123A6B', end_color='123A6B', fill_type='solid')
+    
+    thin_side = Side(border_style="thin", color="DCE6F1")
+    border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+    
+    ws.merge_cells('A1:C1')
+    ws['A1'] = agenda.title or "MEETING AGENDA"
+    ws['A1'].font = title_font
+    ws['A1'].alignment = Alignment(horizontal='center')
+    ws.row_dimensions[1].height = 30
+    
+    meta_rows = [
+        ("Date:", agenda.event_date or "-"),
+        ("Time:", agenda.time or "-"),
+        ("Location:", agenda.location or "-"),
+        ("Chairperson:", agenda.chairperson or "-"),
+        ("Attendants:", agenda.attendants or "-"),
+        ("Objective of Meeting:", agenda.objective or "-")
+    ]
+    
+    curr_row = 3
+    for label, val in meta_rows:
+        ws.cell(row=curr_row, column=1, value=label).font = bold_font
+        ws.cell(row=curr_row, column=2, value=val).font = regular_font
+        ws.merge_cells(start_row=curr_row, start_column=2, end_row=curr_row, end_column=3)
+        curr_row += 1
+        
+    curr_row += 1
+    
+    ws.cell(row=curr_row, column=1, value="2. Schedule of Activity / Meeting").font = bold_font
+    curr_row += 1
+    
+    headers = ["Time", "Activity / Topic", "Presenter / Responsible"]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=curr_row, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = border_all
+        
+    ws.row_dimensions[curr_row].height = 25
+    
+    rows = []
+    if agenda.schedule_table:
+        try:
+            rows = json.loads(agenda.schedule_table)
+        except Exception:
+            pass
+            
+    for r in rows:
+        curr_row += 1
+        ws.cell(row=curr_row, column=1, value=r.get('time', ''))
+        ws.cell(row=curr_row, column=2, value=r.get('activity', ''))
+        ws.cell(row=curr_row, column=3, value=r.get('presenter', ''))
+        
+        for col_idx in range(1, 4):
+            cell = ws.cell(row=curr_row, column=col_idx)
+            cell.font = regular_font
+            cell.border = border_all
+            cell.alignment = Alignment(vertical='top', wrap_text=True)
+            
+    curr_row += 2
+    
+    ws.cell(row=curr_row, column=1, value="3. Follow-Ups of Previous MOM & Tasks").font = bold_font
+    ws.cell(row=curr_row, column=2, value=agenda.follow_ups or "None").font = regular_font
+    ws.merge_cells(start_row=curr_row, start_column=2, end_row=curr_row, end_column=3)
+    
+    curr_row += 2
+    
+    ws.cell(row=curr_row, column=1, value="4. Tasks to be Done").font = bold_font
+    ws.cell(row=curr_row, column=2, value=agenda.tasks or "None").font = regular_font
+    ws.merge_cells(start_row=curr_row, start_column=2, end_row=curr_row, end_column=3)
+    
+    ws.column_dimensions['A'].width = 25
+    ws.column_dimensions['B'].width = 45
+    ws.column_dimensions['C'].width = 25
+    
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def format_text_for_pdf(text):
     if not text:
         return ""
@@ -803,9 +1022,12 @@ def make_mom_word_html(mom):
             
     table_rows_html = ""
     for r in rows:
+        sr_no = r.get('sr_no', '')
+        if sr_no and "Agenda" not in str(sr_no):
+            sr_no = f"Agenda {sr_no}"
         table_rows_html += f"""
         <tr>
-            <td style="width: 8%; text-align: center;">{r.get('sr_no', '')}</td>
+            <td style="width: 8%; text-align: center;">{sr_no}</td>
             <td style="width: 22%;">{format_text_for_word(r.get('topic', ''))}</td>
             <td style="width: 35%;">{format_text_for_word(r.get('points', ''))}</td>
             <td style="width: 20%;">{format_text_for_word(r.get('actionable', ''))}</td>
@@ -1044,7 +1266,10 @@ def generate_mom_excel_data(mom):
             
     for r in rows:
         curr_row += 1
-        ws.cell(row=curr_row, column=1, value=r.get('sr_no', '')).alignment = Alignment(horizontal='center')
+        sr_no = r.get('sr_no', '')
+        if sr_no and "Agenda" not in str(sr_no):
+            sr_no = f"Agenda {sr_no}"
+        ws.cell(row=curr_row, column=1, value=sr_no).alignment = Alignment(horizontal='center')
         ws.cell(row=curr_row, column=2, value=r.get('topic', ''))
         ws.cell(row=curr_row, column=3, value=r.get('points', ''))
         ws.cell(row=curr_row, column=4, value=r.get('actionable', ''))
@@ -1202,7 +1427,7 @@ def agenda_pdf(entry_id):
     agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first_or_404()
     entry = agenda.schedule_entry
     pdf_bytes = generate_agenda_pdf_data(agenda)
-    filename = get_safe_filename("Agenda", entry.event_date, entry.activity, "pdf")
+    filename = get_download_filename("agenda", agenda.event_date or entry.event_date, "pdf")
     return Response(
         pdf_bytes,
         mimetype="application/pdf",
@@ -1216,10 +1441,24 @@ def agenda_word(entry_id):
     agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first_or_404()
     entry = agenda.schedule_entry
     word_html = make_agenda_word_html(agenda)
-    filename = get_safe_filename("Agenda", entry.event_date, entry.activity, "doc")
+    filename = get_download_filename("agenda", agenda.event_date or entry.event_date, "doc")
     return Response(
         word_html,
         mimetype="application/msword",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@dashboard_bp.route('/agenda/<int:entry_id>/excel')
+@login_required
+def agenda_excel(entry_id):
+    agenda = Agenda.query.filter_by(schedule_entry_id=entry_id).first_or_404()
+    entry = agenda.schedule_entry
+    excel_bytes = generate_agenda_excel_data(agenda)
+    filename = get_download_filename("agenda", agenda.event_date or entry.event_date, "xlsx")
+    return Response(
+        excel_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
@@ -1243,7 +1482,7 @@ def mom_edit(entry_id):
         else:
             meeting_agenda = f"Discussion regarding activity: {entry.activity}"
             
-        default_mom = [{"sr_no": "1", "topic": entry.activity or "", "points": "", "actionable": "", "responsibility": entry.responsible_person or ""}]
+        default_mom = [{"sr_no": "Agenda 1", "topic": entry.activity or "", "points": "", "actionable": "", "responsibility": entry.responsible_person or ""}]
         mom_table = json.dumps(default_mom)
         
         mom = MOM(
@@ -1351,7 +1590,7 @@ def mom_word(entry_id):
     mom = MOM.query.filter_by(schedule_entry_id=entry_id).first_or_404()
     entry = mom.schedule_entry
     word_html = make_mom_word_html(mom)
-    filename = get_safe_filename("MOM", entry.event_date, entry.activity, "doc")
+    filename = get_download_filename("mom", mom.meeting_date or entry.event_date, "doc")
     return Response(
         word_html,
         mimetype="application/msword",
@@ -1365,10 +1604,24 @@ def mom_excel(entry_id):
     mom = MOM.query.filter_by(schedule_entry_id=entry_id).first_or_404()
     entry = mom.schedule_entry
     excel_bytes = generate_mom_excel_data(mom)
-    filename = get_safe_filename("MOM", entry.event_date, entry.activity, "xlsx")
+    filename = get_download_filename("mom", mom.meeting_date or entry.event_date, "xlsx")
     return Response(
         excel_bytes,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@dashboard_bp.route('/mom/<int:entry_id>/pdf')
+@login_required
+def mom_pdf(entry_id):
+    mom = MOM.query.filter_by(schedule_entry_id=entry_id).first_or_404()
+    entry = mom.schedule_entry
+    pdf_bytes = generate_mom_pdf_data(mom)
+    filename = get_download_filename("mom", mom.meeting_date or entry.event_date, "pdf")
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 

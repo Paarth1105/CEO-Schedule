@@ -9,6 +9,9 @@
         </h2>
         <div style="display: flex; gap: 10px; align-items: center;">
             <a href="{{ url_for('dashboard.schedule') }}" class="btn" style="background: transparent; border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 6px; text-decoration: none;">← Dashboard</a>
+            <a href="{{ url_for('dashboard.agenda_excel', entry_id=entry.id) }}" class="btn" style="background: #1f7244; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+                Download Excel
+            </a>
             <a href="{{ url_for('dashboard.agenda_pdf', entry_id=entry.id) }}" class="btn" style="background: #e74c3c; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
                 Download PDF
             </a>

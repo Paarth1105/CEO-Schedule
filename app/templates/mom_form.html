@@ -50,7 +50,7 @@
                         {% for row in mom_rows %}
                         <tr>
                             <td style="padding: 8px 4px; border-bottom: 1px solid var(--border); text-align: center;">
-                                <input type="text" name="mom_sr_no[]" value="{{ row.sr_no }}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); text-align: center;">
+                                <input type="text" name="mom_sr_no[]" value="{% if row.sr_no %}{% if 'Agenda' in row.sr_no|string %}{{ row.sr_no }}{% else %}Agenda {{ row.sr_no }}{% endif %}{% endif %}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); text-align: center;">
                             </td>
                             <td style="padding: 8px 4px; border-bottom: 1px solid var(--border);">
                                 <input type="text" name="mom_topic[]" value="{{ row.topic }}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text);">
@@ -90,7 +90,7 @@ function addMomRow() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td style="padding: 8px 4px; border-bottom: 1px solid var(--border); text-align: center;">
-            <input type="text" name="mom_sr_no[]" value="${rowCount}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); text-align: center;">
+            <input type="text" name="mom_sr_no[]" value="Agenda ${rowCount}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); text-align: center;">
         </td>
         <td style="padding: 8px 4px; border-bottom: 1px solid var(--border);">
             <input type="text" name="mom_topic[]" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text);">
@@ -122,7 +122,7 @@ function reindexRows() {
     for (let i = 0; i < tbody.rows.length; i++) {
         const srInput = tbody.rows[i].querySelector('input[name="mom_sr_no[]"]');
         if (srInput) {
-            srInput.value = i + 1;
+            srInput.value = "Agenda " + (i + 1);
         }
     }
 }

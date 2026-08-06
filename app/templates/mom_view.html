@@ -12,6 +12,9 @@
             <a href="{{ url_for('dashboard.mom_excel', entry_id=entry.id) }}" class="btn" style="background: #1f7244; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
                 Download Excel
             </a>
+            <a href="{{ url_for('dashboard.mom_pdf', entry_id=entry.id) }}" class="btn" style="background: #e74c3c; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+                Download PDF
+            </a>
             <a href="{{ url_for('dashboard.mom_word', entry_id=entry.id) }}" class="btn" style="background: #2b579a; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
                 Download Word
             </a>
@@ -61,7 +64,7 @@
                         {% for row in mom_rows %}
                         <tr>
                             <td style="padding: 4px; border-bottom: 1px solid var(--border); text-align: center;">
-                                <input type="text" name="mom_sr_no[]" value="{{ row.sr_no }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px; text-align: center;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+                                <input type="text" name="mom_sr_no[]" value="{% if row.sr_no %}{% if 'Agenda' in row.sr_no|string %}{{ row.sr_no }}{% else %}Agenda {{ row.sr_no }}{% endif %}{% endif %}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px; text-align: center;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
                             </td>
                             <td style="padding: 4px; border-bottom: 1px solid var(--border);">
                                 <input type="text" name="mom_topic[]" value="{{ row.topic }}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
@@ -106,7 +109,7 @@ function addMomRow() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td style="padding: 4px; border-bottom: 1px solid var(--border); text-align: center;">
-            <input type="text" name="mom_sr_no[]" value="${rowCount}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px; text-align: center;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
+            <input type="text" name="mom_sr_no[]" value="Agenda ${rowCount}" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px; text-align: center;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
         </td>
         <td style="padding: 4px; border-bottom: 1px solid var(--border);">
             <input type="text" name="mom_topic[]" style="width: 100%; border: 1px solid transparent; background: transparent; padding: 8px; color: var(--text); border-radius: 4px;" onfocus="this.style.border='1px solid var(--primary)'; this.style.background='var(--surface)'" onblur="this.style.border='1px solid transparent'; this.style.background='transparent'">
@@ -138,7 +141,7 @@ function reindexRows() {
     for (let i = 0; i < tbody.rows.length; i++) {
         const srInput = tbody.rows[i].querySelector('input[name="mom_sr_no[]"]');
         if (srInput) {
-            srInput.value = i + 1;
+            srInput.value = "Agenda " + (i + 1);
         }
     }
 }
