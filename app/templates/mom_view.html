@@ -9,13 +9,13 @@
         </h2>
         <div style="display: flex; gap: 10px; align-items: center;">
             <a href="{{ url_for('dashboard.schedule') }}" class="btn" style="background: transparent; border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 6px; text-decoration: none;">← Dashboard</a>
-            <a href="{{ url_for('dashboard.mom_excel', entry_id=entry.id) }}" class="btn" style="background: #1f7244; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+            <a href="#" onclick="triggerDownload('excel'); return false;" class="btn" style="background: #1f7244; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
                 Download Excel
             </a>
-            <a href="{{ url_for('dashboard.mom_pdf', entry_id=entry.id) }}" class="btn" style="background: #e74c3c; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+            <a href="#" onclick="triggerDownload('pdf'); return false;" class="btn" style="background: #e74c3c; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
                 Download PDF
             </a>
-            <a href="{{ url_for('dashboard.mom_word', entry_id=entry.id) }}" class="btn" style="background: #2b579a; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+            <a href="#" onclick="triggerDownload('word'); return false;" class="btn" style="background: #2b579a; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
                 Download Word
             </a>
         </div>
@@ -144,6 +144,22 @@ function reindexRows() {
             srInput.value = "Agenda " + (i + 1);
         }
     }
+}
+
+function triggerDownload(format) {
+    const form = document.querySelector('form');
+    let actionInput = form.querySelector('input[name="download_action"]');
+    if (!actionInput) {
+        actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'download_action';
+        form.appendChild(actionInput);
+    }
+    actionInput.value = format;
+    form.submit();
+    setTimeout(() => {
+        actionInput.value = '';
+    }, 100);
 }
 </script>
 {% endblock %}

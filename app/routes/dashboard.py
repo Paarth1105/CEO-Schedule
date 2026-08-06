@@ -755,10 +755,18 @@ def generate_mom_pdf_data(mom):
     story.append(Paragraph("Minutes of Meeting (MOM)", title_style))
     story.append(Spacer(1, 10))
     
+    chairperson_val = mom.schedule_entry.responsible_person if (mom.schedule_entry and mom.schedule_entry.responsible_person) else "-"
+    attendants_list = []
+    if mom.schedule_entry and mom.schedule_entry.attendants:
+        attendants_list = [u.name for u in mom.schedule_entry.attendants]
+    attendants_val = ", ".join(attendants_list) if attendants_list else "-"
+    
     meta_data = [
         [Paragraph("<b>Meeting Date:</b>", body_style), Paragraph(format_text_for_pdf(mom.meeting_date or "-"), body_style)],
         [Paragraph("<b>Time:</b>", body_style), Paragraph(format_text_for_pdf(mom.time or "-"), body_style)],
         [Paragraph("<b>Location:</b>", body_style), Paragraph(format_text_for_pdf(mom.location or "-"), body_style)],
+        [Paragraph("<b>Chairperson:</b>", body_style), Paragraph(format_text_for_pdf(chairperson_val), body_style)],
+        [Paragraph("<b>Attendants:</b>", body_style), Paragraph(format_text_for_pdf(attendants_val), body_style)],
         [Paragraph("<b>Meeting Agenda:</b>", body_style), Paragraph(format_text_for_pdf(mom.meeting_agenda or "-"), body_style)]
     ]
     
@@ -1035,6 +1043,9 @@ def make_mom_word_html(mom):
         </tr>
         """
         
+    chair_val = mom.schedule_entry.responsible_person if (mom.schedule_entry and mom.schedule_entry.responsible_person) else "-"
+    att_val = ", ".join([u.name for u in mom.schedule_entry.attendants]) if (mom.schedule_entry and mom.schedule_entry.attendants) else "-"
+        
     html = f"""
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
@@ -1068,6 +1079,8 @@ def make_mom_word_html(mom):
         <tr><td class="meta-label">Meeting Date:</td><td>{format_text_for_word(mom.meeting_date or "-")}</td></tr>
         <tr><td class="meta-label">Time:</td><td>{format_text_for_word(mom.time or "-")}</td></tr>
         <tr><td class="meta-label">Location:</td><td>{format_text_for_word(mom.location or "-")}</td></tr>
+        <tr><td class="meta-label">Chairperson:</td><td>{format_text_for_word(chair_val)}</td></tr>
+        <tr><td class="meta-label">Attendants:</td><td>{format_text_for_word(att_val)}</td></tr>
         <tr><td class="meta-label">Meeting Agenda:</td><td>{format_text_for_word(mom.meeting_agenda or "-")}</td></tr>
       </table>
       
@@ -1231,10 +1244,15 @@ def generate_mom_excel_data(mom):
     ws['A1'].alignment = Alignment(horizontal='center')
     ws.row_dimensions[1].height = 30
     
+    chair_val = mom.schedule_entry.responsible_person if (mom.schedule_entry and mom.schedule_entry.responsible_person) else "-"
+    att_val = ", ".join([u.name for u in mom.schedule_entry.attendants]) if (mom.schedule_entry and mom.schedule_entry.attendants) else "-"
+    
     meta_rows = [
         ("Meeting Date:", mom.meeting_date or "-"),
         ("Time:", mom.time or "-"),
         ("Location:", mom.location or "-"),
+        ("Chairperson:", chair_val),
+        ("Attendants:", att_val),
         ("Meeting Agenda:", mom.meeting_agenda or "-")
     ]
     
@@ -1408,6 +1426,22 @@ def agenda_view(entry_id):
                 })
         agenda.schedule_table = json.dumps(sched_rows)
         db.session.commit()
+        
+        # Check download action
+        download_action = request.form.get('download_action')
+        if download_action == 'pdf':
+            pdf_bytes = generate_agenda_pdf_data(agenda)
+            filename = get_download_filename("agenda", agenda.event_date or entry.event_date, "pdf")
+            return Response(pdf_bytes, mimetype="application/pdf", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        elif download_action == 'excel':
+            excel_bytes = generate_agenda_excel_data(agenda)
+            filename = get_download_filename("agenda", agenda.event_date or entry.event_date, "xlsx")
+            return Response(excel_bytes, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        elif download_action == 'word':
+            word_html = make_agenda_word_html(agenda)
+            filename = get_download_filename("agenda", agenda.event_date or entry.event_date, "doc")
+            return Response(word_html, mimetype="application/msword", headers={"Content-Disposition": f"attachment; filename={filename}"})
+            
         flash('Agenda updated successfully.', 'success')
         return redirect(url_for('dashboard.agenda_view', entry_id=entry_id))
         
@@ -1571,6 +1605,22 @@ def mom_view(entry_id):
                 })
         mom.mom_table = json.dumps(mom_rows)
         db.session.commit()
+        
+        # Check download action
+        download_action = request.form.get('download_action')
+        if download_action == 'pdf':
+            pdf_bytes = generate_mom_pdf_data(mom)
+            filename = get_download_filename("mom", mom.meeting_date or entry.event_date, "pdf")
+            return Response(pdf_bytes, mimetype="application/pdf", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        elif download_action == 'excel':
+            excel_bytes = generate_mom_excel_data(mom)
+            filename = get_download_filename("mom", mom.meeting_date or entry.event_date, "xlsx")
+            return Response(excel_bytes, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        elif download_action == 'word':
+            word_html = make_mom_word_html(mom)
+            filename = get_download_filename("mom", mom.meeting_date or entry.event_date, "doc")
+            return Response(word_html, mimetype="application/msword", headers={"Content-Disposition": f"attachment; filename={filename}"})
+            
         flash('MOM updated successfully.', 'success')
         return redirect(url_for('dashboard.mom_view', entry_id=entry_id))
         
