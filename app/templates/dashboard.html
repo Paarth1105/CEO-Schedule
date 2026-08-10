@@ -182,6 +182,8 @@
                         <a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a>
                         <span style="color: var(--border);">|</span>
                         <a class="inline-link" href="{{ url_for('admin.notify_attendants', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to notify all attendants?');">Notify</a>
+                        <span style="color: var(--border);">|</span>
+                        <a class="inline-link" style="color: var(--danger);" href="{{ url_for('admin.delete_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to delete this schedule entry?');">Delete</a>
                     </td>
                     {% endif %}
                 </tr>
