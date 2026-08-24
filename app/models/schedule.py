@@ -19,6 +19,7 @@ class ScheduleEntry(db.Model):
     remark = db.Column(db.String(200), nullable=True)
     reschedule = db.Column(db.String(10), nullable=False, default='NO')
     given_time = db.Column(db.String(120), nullable=True)
+    alert_sent_10m = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     user = db.relationship('User', backref='schedules')

@@ -104,7 +104,17 @@ with app.app_context():
             if 'google_location' not in columns2:
                 db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN google_location TEXT"))
                 modified2 = True
+            if 'alert_sent_10m' not in columns2:
+                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN alert_sent_10m BOOLEAN DEFAULT FALSE"))
+                modified2 = True
             if modified2:
+                db.session.commit()
+
+        # Check user table
+        if inspector.has_table('user'):
+            columns_user = [c['name'] for c in inspector.get_columns('user')]
+            if 'phone_number' not in columns_user:
+                db.session.execute(text("ALTER TABLE user ADD COLUMN phone_number VARCHAR(20)"))
                 db.session.commit()
 
         # Check notification table
@@ -126,5 +136,14 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(admin_bp)
 
+# Start background notification scheduler (only once if debug reloader is enabled)
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    try:
+        from app.services.scheduler import init_scheduler
+        init_scheduler(app)
+    except Exception as e:
+        print("[Scheduler Error on Startup]:", e)
+
 if __name__ == '__main__':
     app.run(debug=True)
+

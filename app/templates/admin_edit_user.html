@@ -25,6 +25,10 @@
             <input type="email" name="email" value="{{ user.email }}" required>
         </label>
         <label class="field-card">
+            <span>Phone Number (with Country Code e.g. +919876543210)</span>
+            <input type="text" name="phone_number" value="{{ user.phone_number or '' }}" placeholder="+919876543210">
+        </label>
+        <label class="field-card">
             <span>Role</span>
             <select name="role" required style="width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); color: var(--text);">
                 <option value="Employee" {% if user.role == 'Employee' %}selected{% endif %}>Employee</option>

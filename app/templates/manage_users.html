@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card">
+<div class="card" style="margin-bottom: 24px;">
     <div class="section-header" style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px;">
         <div>
             <h2 style="color: var(--primary); margin: 0 0 4px 0;">User Management Portal</h2>
-            <p style="color: var(--muted); margin: 0;">View credentials, update designations/departments, reset passwords, or delete users.</p>
+            <p style="color: var(--muted); margin: 0;">View credentials, update phone numbers, reset passwords, or delete users.</p>
         </div>
         <div>
             <a class="btn" href="{{ url_for('auth.register') }}" style="display: inline-flex; align-items: center; gap: 8px;">
@@ -18,6 +18,7 @@
             <thead>
                 <tr>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Name</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Phone Number</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Email</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Department</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Designation</th>
@@ -30,6 +31,7 @@
                 {% for u in users %}
                 <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 12px;"><strong>{{ u.name }}</strong></td>
+                    <td style="padding: 12px;">{{ u.phone_number or '-' }}</td>
                     <td style="padding: 12px;">{{ u.email }}</td>
                     <td style="padding: 12px;">{{ u.department }}</td>
                     <td style="padding: 12px;">{{ u.designation }}</td>
@@ -62,5 +64,35 @@
             </tbody>
         </table>
     </div>
+</div>
+
+<div class="card" style="border: 1px dashed var(--primary); background: rgba(79, 70, 229, 0.03);">
+    <h3 style="color: var(--primary); margin: 0 0 8px 0;">📲 CEO Notification Test Panel</h3>
+    <p style="color: var(--muted); margin: 0 0 16px 0; font-size: 0.95rem;">Test SMS, Email, and WhatsApp daily schedule digest dispatch to verify API credentials and contact numbers.</p>
+    
+    <form action="{{ url_for('admin.test_notifications') }}" method="post" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
+        <div style="flex: 1; min-width: 200px;">
+            <label style="font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px;">Target Phone Number</label>
+            <input type="text" name="phone_number" placeholder="+919876543210" style="width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">
+        </div>
+        <div style="flex: 1; min-width: 200px;">
+            <label style="font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px;">Target Email</label>
+            <input type="email" name="email" placeholder="ceo@company.com" style="width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;">
+        </div>
+        <div style="width: 160px;">
+            <label style="font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px;">Channel</label>
+            <select name="channel" style="width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; background: var(--surface);">
+                <option value="all">All Channels</option>
+                <option value="whatsapp">WhatsApp Digest</option>
+                <option value="sms">SMS</option>
+                <option value="email">Email</option>
+            </select>
+        </div>
+        <div>
+            <button type="submit" class="btn primary" style="height: 38px; display: inline-flex; align-items: center; gap: 6px;">
+                <span>🚀 Send Test Notification</span>
+            </button>
+        </div>
+    </form>
 </div>
 {% endblock %}

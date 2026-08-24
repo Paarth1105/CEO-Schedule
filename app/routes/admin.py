@@ -82,7 +82,17 @@ def new_schedule():
 
         db.session.add(entry)
         db.session.commit()
-        flash('Schedule entry created successfully.', 'success')
+
+        # Trigger instant WhatsApp notification to CEO Sir and check if daily image digest was pending
+        try:
+            from flask import current_app
+            from app.services.scheduler import notify_ceo_on_event_change, check_and_trigger_pending_daily_digest
+            notify_ceo_on_event_change(entry, action="created")
+            check_and_trigger_pending_daily_digest(current_app._get_current_object(), entry.event_date)
+        except Exception as e:
+            print(f"[Admin Route Error triggering notification]: {e}")
+
+        flash('Schedule entry created successfully and WhatsApp notification sent to CEO Sir.', 'success')
         return redirect(url_for('dashboard.schedule', date=event_date.strftime('%Y-%m-%d')))
 
     default_date = request.args.get('date')
@@ -122,7 +132,16 @@ def edit_schedule(entry_id):
         entry.attendants = selected_users
 
         db.session.commit()
-        flash('Schedule entry updated.', 'success')
+
+        try:
+            from flask import current_app
+            from app.services.scheduler import notify_ceo_on_event_change, check_and_trigger_pending_daily_digest
+            notify_ceo_on_event_change(entry, action="updated")
+            check_and_trigger_pending_daily_digest(current_app._get_current_object(), entry.event_date)
+        except Exception as e:
+            print(f"[Admin Route Error triggering notification]: {e}")
+
+        flash('Schedule entry updated and WhatsApp notification sent to CEO Sir.', 'success')
         return redirect(url_for('dashboard.schedule'))
     start_time, end_time = '', ''
     if entry.time:
@@ -193,6 +212,7 @@ def edit_user(user_id):
         department = request.form['department'].strip()
         designation = request.form['designation'].strip()
         email = request.form['email'].strip()
+        phone_number = request.form.get('phone_number', '').strip()
         password = request.form.get('password', '').strip()
         role = request.form['role']
 
@@ -206,6 +226,7 @@ def edit_user(user_id):
         user.department = department
         user.designation = designation
         user.email = email
+        user.phone_number = phone_number
         user.role = role
         if password:
             user.password = password
@@ -215,6 +236,37 @@ def edit_user(user_id):
         return redirect(url_for('admin.manage_users'))
 
     return render_template('admin_edit_user.html', user=user)
+
+
+@admin_bp.route('/admin/test-notifications', methods=['POST'])
+@admin_only
+def test_notifications():
+    from app.services.notifier import send_sms, send_whatsapp, send_email
+    from app.services.scheduler import send_daily_9am_whatsapp_digest
+    from flask import current_app
+
+    channel = request.form.get('channel', 'all')
+    target_phone = request.form.get('phone_number', '').strip()
+    target_email = request.form.get('email', '').strip()
+
+    test_msg = "🔔 [TEST NOTIFICATION] CEO Sir Schedule Notification System is operating normally!"
+
+    results = []
+    if channel in ('sms', 'all'):
+        ok = send_sms(target_phone, test_msg)
+        results.append(f"SMS: {'Success' if ok else 'Failed/Logged'}")
+
+    if channel in ('whatsapp', 'all'):
+        send_daily_9am_whatsapp_digest(current_app._get_current_object())
+        results.append("WhatsApp Daily Digest triggered.")
+
+    if channel in ('email', 'all'):
+        ok = send_email(target_email, "Test CEO Schedule Notification System", test_msg)
+        results.append(f"Email: {'Success' if ok else 'Failed/Logged'}")
+
+    flash(f"Notification Test Executed: {', '.join(results)}", 'info')
+    return redirect(url_for('admin.manage_users'))
+
 
 
 @admin_bp.route('/admin/users/<int:user_id>/delete', methods=['POST'])
