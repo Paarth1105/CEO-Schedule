@@ -14,3 +14,9 @@ class User(db.Model):
 
     def is_admin_role(self):
         return self.role in {'Personal Assistant', 'Senior Assistant', 'Admin'}
+
+    def is_proprietor(self):
+        return self.role == 'Proprietor'
+
+    def can_manage_proprietor_schedule(self):
+        return self.role in {'Personal Assistant', 'Senior Assistant', 'Admin', 'Proprietor'}

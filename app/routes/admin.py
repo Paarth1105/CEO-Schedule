@@ -20,6 +20,18 @@ def parse_event_date(raw_value):
         return date.fromisoformat(raw_value)
 
 
+def schedule_manage_required(view):
+    def wrapped(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please log in first.', 'warning')
+            return redirect(url_for('auth.login'))
+        user = User.query.get(session['user_id'])
+        if not user or not (user.is_admin_role() or user.role == 'Proprietor'):
+            flash('Only Personal Assistant, Senior Assistant, Admin, or Proprietor can manage this schedule.', 'danger')
+            return redirect(url_for('dashboard.schedule'))
+        return view(*args, **kwargs)
+    wrapped.__name__ = view.__name__
+    return wrapped
 def admin_required(view):
     def wrapped(*args, **kwargs):
         user = User.query.get(session['user_id'])
@@ -46,9 +58,11 @@ def admin_only(view):
 
 
 @admin_bp.route('/admin/schedule/new', methods=['GET', 'POST'])
-@admin_required
+@schedule_manage_required
 def new_schedule():
+    current_user = User.query.get(session['user_id'])
     users = User.query.order_by(User.name.asc()).all()
+    target = request.args.get('target', 'proprietor' if current_user.role == 'Proprietor' else 'ceo')
     if request.method == 'POST':
         event_date = parse_event_date(request.form['event_date'])
         start_time = request.form.get('start_hour', '').strip()
@@ -70,14 +84,25 @@ def new_schedule():
         reschedule = request.form.get('reschedule', 'NO')
         given_time = request.form.get('given_time', '').strip()
 
+        if current_user.role == 'Proprietor': 
+            schedule_type = 'proprietor'
+        else:
+            schedule_type = request.form.get('schedule_type', 'ceo')
+
         entry = ScheduleEntry(event_date=event_date, time=time_value, activity=activity, location=location,
                               google_location=google_location,
                               responsible_person=responsible_person, priority=priority, status=status,
-                              remark=remark, reschedule=reschedule, given_time=given_time)
+                              remark=remark, reschedule=reschedule, given_time=given_time,
+                              schedule_type=schedule_type)
+
+        if schedule_type == 'proprietor':
+            proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+            if proprietor_user:
+                entry.user_id = proprietor_user.id
         
         attendant_ids = request.form.getlist('attendants')
         if attendant_ids:
-            selected_users = User.query.filter(User.id.in_([int(uid) for uid in attendant_ids])).all()
+            selected_users = User.query.all()
             entry.attendants = selected_users
 
         db.session.add(entry)
@@ -93,7 +118,8 @@ def new_schedule():
             print(f"[Admin Route Error triggering notification]: {e}")
 
         flash('Schedule entry created successfully and WhatsApp notification sent to CEO Sir.', 'success')
-        return redirect(url_for('dashboard.schedule', date=event_date.strftime('%Y-%m-%d')))
+        target_v = 'proprietor' if schedule_type == 'proprietor' else 'ceo'
+        return redirect(url_for('dashboard.schedule', view_type=target_v, date=event_date.strftime('%Y-%m-%d')))
 
     default_date = request.args.get('date')
     if not default_date:
@@ -102,7 +128,7 @@ def new_schedule():
 
 
 @admin_bp.route('/admin/schedule/<int:entry_id>/edit', methods=['GET', 'POST'])
-@admin_required
+@schedule_manage_required
 def edit_schedule(entry_id):
     entry = ScheduleEntry.query.get_or_404(entry_id)
     users = User.query.order_by(User.name.asc()).all()
@@ -128,7 +154,7 @@ def edit_schedule(entry_id):
         entry.given_time = request.form.get('given_time', '').strip()
         
         attendant_ids = request.form.getlist('attendants')
-        selected_users = User.query.filter(User.id.in_([int(uid) for uid in attendant_ids])).all() if attendant_ids else []
+        selected_users = User.query.all() if attendant_ids else []
         entry.attendants = selected_users
 
         db.session.commit()
@@ -187,7 +213,7 @@ def edit_schedule(entry_id):
 
 
 @admin_bp.route('/admin/schedule/<int:entry_id>/delete')
-@admin_required
+@schedule_manage_required
 def delete_schedule(entry_id):
     entry = ScheduleEntry.query.get_or_404(entry_id)
     db.session.delete(entry)
@@ -284,7 +310,7 @@ def delete_user(user_id):
 
 
 @admin_bp.route('/admin/schedule/<int:entry_id>/notify', methods=['GET', 'POST'])
-@admin_required
+@schedule_manage_required
 def notify_attendants(entry_id):
     from app.models.notification import Notification
     entry = ScheduleEntry.query.get_or_404(entry_id)

@@ -3,6 +3,23 @@
 <div class="card">
     <h2>{% if entry %}Edit{% else %}Create{% endif %} Schedule Entry</h2>
     <form method="post">
+        {% if session.get('user_role') != 'Proprietor' %}
+        <div style="margin-bottom: 16px; padding: 12px; border-radius: 8px; background: var(--surface-hover, rgba(0,0,0,0.03)); border: 1px solid var(--border);">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text);">Schedule Target</label>
+            <div style="display: flex; gap: 24px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="schedule_type" value="ceo" {% if (entry and entry.schedule_type != 'proprietor') or (not entry and target != 'proprietor') %}checked{% endif %}>
+                    <strong>CEO Schedule</strong>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="schedule_type" value="proprietor" {% if (entry and entry.schedule_type == 'proprietor') or (not entry and target == 'proprietor') %}checked{% endif %}>
+                    <strong>Proprietor Schedule</strong>
+                </label>
+            </div>
+        </div>
+        {% else %}
+        <input type="hidden" name="schedule_type" value="proprietor">
+        {% endif %}
         <label>Date</label>
         <input type="date" name="event_date" value="{{ entry.event_date if entry else (default_date or '') }}" required>
         <label>Start Time</label>

@@ -9,6 +9,7 @@ parent_dir = os.path.dirname(basedir)
 
 app = Flask(__name__, instance_path=os.path.join(parent_dir, 'instance'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+
 # Allow configuring a Postgres (or any SQLALCHEMY) database via environment variable
 database_url = os.environ.get("DATABASE_URL")
 
@@ -32,8 +33,15 @@ print("DATABASE_URL =", repr(database_url))
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
+# Force SSL Mode for PostgreSQL connections (Fixes SSL closed unexpectedly error)
+if database_url and "postgresql" in database_url:
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "connect_args": {
+            # # # "sslmode": "require"
+        }
+    }
 
+db = SQLAlchemy(app)
 
 
 @app.context_processor
@@ -104,6 +112,9 @@ with app.app_context():
             if 'google_location' not in columns2:
                 db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN google_location TEXT"))
                 modified2 = True
+            if 'schedule_type' not in columns2:
+                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN schedule_type VARCHAR(40) DEFAULT 'ceo'"))
+                modified2 = True
             if 'alert_sent_10m' not in columns2:
                 db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN alert_sent_10m BOOLEAN DEFAULT FALSE"))
                 modified2 = True
@@ -146,4 +157,3 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
 
 if __name__ == '__main__':
     app.run(debug=True)
-

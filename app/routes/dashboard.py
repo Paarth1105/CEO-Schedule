@@ -343,8 +343,7 @@ def calendar_view():
         # Employees see CEO schedule and their own personal schedule
         entries = ScheduleEntry.query.filter(
             or_(
-                ScheduleEntry.user_id.is_(None),
-                ScheduleEntry.user_id == current_user.id
+                ScheduleEntry.user_id.is_(None), ScheduleEntry.schedule_type.in_(['ceo', 'proprietor']), ScheduleEntry.user_id == current_user.id
             )
         ).order_by(ScheduleEntry.event_date.asc()).all()
 
@@ -363,10 +362,10 @@ def calendar_view():
 @login_required
 def employees_list():
     current_user = User.query.get(session['user_id'])
-    if not current_user.is_admin_role():
-        flash('Only Personal Assistant or Senior Assistant can view employees.', 'danger')
+    if not (current_user.is_admin_role() or current_user.role == 'Proprietor'):
+        flash('Only Personal Assistant, Senior Assistant, Admin, or Proprietor can view employees.', 'danger')
         return redirect(url_for('dashboard.schedule'))
-    employees = User.query.filter_by(role='Employee').order_by(User.name.asc()).all()
+    employees = User.query.all()
     return render_template('employees.html', employees=employees, current_user=current_user)
 
 
