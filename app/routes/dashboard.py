@@ -80,8 +80,19 @@ def schedule():
 
     # Filter based on view_type and user role
     if view_type == 'mine':
-        query = query.filter(ScheduleEntry.user_id == current_user.id)
-    elif view_type == 'employee' and current_user.is_admin_role():
+        if current_user.role == 'Proprietor':
+            proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+            p_id = proprietor_user.id if proprietor_user else current_user.id
+            query = query.filter(or_(ScheduleEntry.schedule_type == 'proprietor', ScheduleEntry.user_id == p_id))
+        else:
+            query = query.filter(ScheduleEntry.user_id == current_user.id)
+    elif view_type == 'proprietor':
+        proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+        if proprietor_user:
+            query = query.filter(or_(ScheduleEntry.schedule_type == 'proprietor', ScheduleEntry.user_id == proprietor_user.id))
+        else:
+            query = query.filter(ScheduleEntry.schedule_type == 'proprietor')
+    elif view_type == 'employee' and (current_user.is_admin_role() or current_user.role == 'Proprietor'):
         if employee_id:
             target_employee = User.query.get(employee_id)
             query = query.filter(ScheduleEntry.user_id == employee_id)
@@ -89,7 +100,11 @@ def schedule():
             query = query.filter(ScheduleEntry.user_id == -1) # empty
     else:
         view_type = 'ceo'
-        query = query.filter(ScheduleEntry.user_id.is_(None))
+        query = query.filter(
+            ScheduleEntry.user_id.is_(None),
+            or_(ScheduleEntry.schedule_type == 'ceo', ScheduleEntry.schedule_type.is_(None)),
+            ScheduleEntry.schedule_type != 'proprietor'
+        )
 
     if rescheduled_only:
         query = query.filter(ScheduleEntry.reschedule == 'YES')
@@ -226,8 +241,8 @@ def edit_request(req_id):
 @login_required
 def reply_request(req_id):
     current_user = User.query.get(session['user_id'])
-    if not current_user.is_admin_role():
-        flash('Only PA/SA can send replies.', 'danger')
+    if not (current_user.is_admin_role() or current_user.role == 'Proprietor'):
+        flash('Only Personal Assistant, Senior Assistant, Admin, or Proprietor can send replies.', 'danger')
         return redirect(url_for('dashboard.request_history'))
 
     req = RequestMessage.query.get_or_404(req_id)
@@ -284,7 +299,7 @@ def profile():
 @login_required
 def request_history():
     current_user = User.query.get(session['user_id'])
-    if current_user.is_admin_role():
+    if current_user.is_admin_role() or current_user.role == 'Proprietor':
         requests = RequestMessage.query.order_by(RequestMessage.created_at.desc()).all()
     else:
         requests = RequestMessage.query.filter_by(user_id=session['user_id']).order_by(RequestMessage.created_at.desc()).all()
@@ -302,7 +317,7 @@ def feedback_history():
             flash('Request not found.', 'danger')
             return redirect(url_for('dashboard.feedback_history'))
 
-        if current_user.is_admin_role():
+        if current_user.is_admin_role() or current_user.role == 'Proprietor':
             feedback = request.form['feedback']
             status = request.form['status']
             req.feedback = feedback
@@ -325,7 +340,7 @@ def feedback_history():
         )
     )
 
-    if current_user.is_admin_role():
+    if current_user.is_admin_role() or current_user.role == 'Proprietor':
         requests = feedback_query.order_by(RequestMessage.created_at.desc()).all()
     else:
         requests = feedback_query.filter(RequestMessage.user_id == current_user.id).order_by(RequestMessage.created_at.desc()).all()
@@ -336,11 +351,17 @@ def feedback_history():
 @login_required
 def calendar_view():
     current_user = User.query.get(session['user_id'])
-    if current_user.is_admin_role():
-        # SA/PA can see CEO schedule on the calendar
-        entries = ScheduleEntry.query.filter(ScheduleEntry.user_id.is_(None)).order_by(ScheduleEntry.event_date.asc()).all()
+    if current_user.is_admin_role() or current_user.role == 'Proprietor':
+        # SA/PA/Admin/Proprietor can see CEO & Proprietor schedule on the calendar
+        entries = ScheduleEntry.query.filter(
+            or_(
+                ScheduleEntry.user_id.is_(None),
+                ScheduleEntry.schedule_type.in_(['ceo', 'proprietor']),
+                ScheduleEntry.user_id == current_user.id
+            )
+        ).order_by(ScheduleEntry.event_date.asc()).all()
     else:
-        # Employees see CEO schedule and their own personal schedule
+        # Employees see CEO & Proprietor schedule and their own personal schedule
         entries = ScheduleEntry.query.filter(
             or_(
                 ScheduleEntry.user_id.is_(None), ScheduleEntry.schedule_type.in_(['ceo', 'proprietor']), ScheduleEntry.user_id == current_user.id
@@ -539,8 +560,8 @@ def delete_employee_schedule(entry_id):
 @login_required
 def notify_employee(employee_id):
     current_user = User.query.get(session['user_id'])
-    if not current_user.is_admin_role():
-        flash('Only Personal Assistant or Senior Assistant can notify employees.', 'danger')
+    if not (current_user.is_admin_role() or current_user.role == 'Proprietor'):
+        flash('Only Personal Assistant, Senior Assistant, Admin, or Proprietor can notify employees.', 'danger')
         return redirect(url_for('dashboard.schedule'))
 
     employee = User.query.get_or_404(employee_id)
@@ -548,8 +569,15 @@ def notify_employee(employee_id):
         flash('Can only notify employees.', 'warning')
         return redirect(url_for('dashboard.employees_list'))
 
-    # Fetch CEO schedule entries to allow linking an invitation
-    ceo_schedules = ScheduleEntry.query.filter(ScheduleEntry.user_id.is_(None)).order_by(ScheduleEntry.event_date.desc(), ScheduleEntry.id.desc()).all()
+    # Fetch relevant schedule entries to allow linking an invitation
+    if current_user.role == 'Proprietor':
+        ceo_schedules = ScheduleEntry.query.filter(
+            or_(ScheduleEntry.schedule_type == 'proprietor', ScheduleEntry.user_id == current_user.id)
+        ).order_by(ScheduleEntry.event_date.desc(), ScheduleEntry.id.desc()).all()
+    else:
+        ceo_schedules = ScheduleEntry.query.filter(
+            or_(ScheduleEntry.user_id.is_(None), ScheduleEntry.schedule_type == 'ceo')
+        ).order_by(ScheduleEntry.event_date.desc(), ScheduleEntry.id.desc()).all()
 
     if request.method == 'POST':
         message = request.form.get('message', '').strip()
@@ -610,7 +638,7 @@ def acknowledge_notification(notif_id):
 @login_required
 def notifications():
     current_user = User.query.get(session['user_id'])
-    if current_user.is_admin_role():
+    if current_user.is_admin_role() or current_user.role == 'Proprietor':
         acknowledged_notifs = Notification.query.filter_by(
             acknowledged=True
         ).order_by(Notification.created_at.desc()).all()
@@ -652,7 +680,7 @@ def toggle_attendance(entry_id):
 def toggle_user_attendance(entry_id, user_id):
     from flask import jsonify
     current_user = User.query.get(session['user_id'])
-    if not current_user.is_admin_role():
+    if not (current_user.is_admin_role() or current_user.role == 'Proprietor'):
         return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
         
     entry = ScheduleEntry.query.get_or_404(entry_id)

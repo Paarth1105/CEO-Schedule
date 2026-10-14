@@ -99,7 +99,7 @@
                     <th>Attendants</th>
                     <th class="col-agenda">Agenda</th>
                     <th class="col-mom">MOM</th>
-                    {% if (view_type == 'ceo' and current_user.is_admin_role()) or (view_type == 'proprietor' and (current_user.is_admin_role() or current_user.role == 'Proprietor')) %}<th class="col-action">Action</th>{% endif %}
+                    {% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}<th class="col-action">Action</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -134,7 +134,7 @@
                                 {% endif %}
                             </div>
                             
-                            {% if current_user.is_admin_role() or (view_type == 'proprietor' and current_user.role == 'Proprietor') %}
+                            {% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}
                             <div class="inline-manage-dropdown attend-toggle-ui">
                                 <button type="button" class="btn-manage-attendants dropdown-trigger" data-dropdown-id="dropdown-{{ entry.id }}">
                                     + Add/Remove
@@ -177,7 +177,7 @@
                         <span style="color: var(--border);">|</span>
                         <a class="inline-link" href="{{ url_for('dashboard.mom_view', entry_id=entry.id) }}">View</a>
                     </td>
-                    {% if (view_type == 'ceo' and current_user.is_admin_role()) or (view_type == 'proprietor' and (current_user.is_admin_role() or current_user.role == 'Proprietor')) %}
+                    {% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}
                     <td class="col-action">
                         <a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a>
                         <span style="color: var(--border);">|</span>
@@ -188,7 +188,7 @@
                     {% endif %}
                 </tr>
                 {% else %}
-                <tr><td colspan="{% if (view_type == 'ceo' and current_user.is_admin_role()) or (view_type == 'proprietor' and (current_user.is_admin_role() or current_user.role == 'Proprietor')) %}15{% else %}14{% endif %}" class="empty-state">No schedule entries available for this range.</td></tr>
+                <tr><td colspan="{% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}15{% else %}14{% endif %}" class="empty-state">No schedule entries available for this range.</td></tr>
                 {% endfor %}
             </tbody>
             {% endif %}

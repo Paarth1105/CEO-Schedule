@@ -96,9 +96,12 @@ def new_schedule():
                               schedule_type=schedule_type)
 
         if schedule_type == 'proprietor':
-            proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
-            if proprietor_user:
-                entry.user_id = proprietor_user.id
+            if current_user.role == 'Proprietor':
+                entry.user_id = current_user.id
+            else:
+                proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+                if proprietor_user:
+                    entry.user_id = proprietor_user.id
         
         attendant_ids = request.form.getlist('attendants')
         if attendant_ids:
@@ -108,28 +111,31 @@ def new_schedule():
         db.session.add(entry)
         db.session.commit()
 
-        # Trigger instant WhatsApp notification to CEO Sir and check if daily image digest was pending
+        # Trigger instant WhatsApp notification to CEO Sir / Proprietor and check if daily image digest was pending
         try:
             from flask import current_app
             from app.services.scheduler import notify_ceo_on_event_change, check_and_trigger_pending_daily_digest
             notify_ceo_on_event_change(entry, action="created")
-            check_and_trigger_pending_daily_digest(current_app._get_current_object(), entry.event_date)
+            if schedule_type != 'proprietor':
+                check_and_trigger_pending_daily_digest(current_app._get_current_object(), entry.event_date)
         except Exception as e:
             print(f"[Admin Route Error triggering notification]: {e}")
 
-        flash('Schedule entry created successfully and WhatsApp notification sent to CEO Sir.', 'success')
+        target_label = "Proprietor" if schedule_type == 'proprietor' else "CEO Sir"
+        flash(f'Schedule entry created successfully and notification sent to {target_label}.', 'success')
         target_v = 'proprietor' if schedule_type == 'proprietor' else 'ceo'
         return redirect(url_for('dashboard.schedule', view_type=target_v, date=event_date.strftime('%Y-%m-%d')))
 
     default_date = request.args.get('date')
     if not default_date:
         default_date = date.today().strftime('%Y-%m-%d')
-    return render_template('admin_schedule_form.html', users=users, default_date=default_date)
+    return render_template('admin_schedule_form.html', users=users, default_date=default_date, target=target)
 
 
 @admin_bp.route('/admin/schedule/<int:entry_id>/edit', methods=['GET', 'POST'])
 @schedule_manage_required
 def edit_schedule(entry_id):
+    current_user = User.query.get(session['user_id'])
     entry = ScheduleEntry.query.get_or_404(entry_id)
     users = User.query.order_by(User.name.asc()).all()
     if request.method == 'POST':
@@ -153,6 +159,20 @@ def edit_schedule(entry_id):
         entry.reschedule = request.form.get('reschedule', 'NO')
         entry.given_time = request.form.get('given_time', '').strip()
         
+        # Update schedule_type and user_id
+        if current_user.role == 'Proprietor':
+            entry.schedule_type = 'proprietor'
+            entry.user_id = current_user.id
+        else:
+            new_schedule_type = request.form.get('schedule_type', entry.schedule_type or 'ceo')
+            entry.schedule_type = new_schedule_type
+            if new_schedule_type == 'proprietor':
+                proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+                if proprietor_user:
+                    entry.user_id = proprietor_user.id
+            elif new_schedule_type == 'ceo':
+                entry.user_id = None
+
         attendant_ids = request.form.getlist('attendants')
         selected_users = User.query.all() if attendant_ids else []
         entry.attendants = selected_users
@@ -163,12 +183,15 @@ def edit_schedule(entry_id):
             from flask import current_app
             from app.services.scheduler import notify_ceo_on_event_change, check_and_trigger_pending_daily_digest
             notify_ceo_on_event_change(entry, action="updated")
-            check_and_trigger_pending_daily_digest(current_app._get_current_object(), entry.event_date)
+            if entry.schedule_type != 'proprietor':
+                check_and_trigger_pending_daily_digest(current_app._get_current_object(), entry.event_date)
         except Exception as e:
             print(f"[Admin Route Error triggering notification]: {e}")
 
-        flash('Schedule entry updated and WhatsApp notification sent to CEO Sir.', 'success')
-        return redirect(url_for('dashboard.schedule'))
+        target_label = "Proprietor" if entry.schedule_type == 'proprietor' else "CEO Sir"
+        flash(f'Schedule entry updated and notification sent to {target_label}.', 'success')
+        target_v = 'proprietor' if entry.schedule_type == 'proprietor' else 'ceo'
+        return redirect(url_for('dashboard.schedule', view_type=target_v, date=entry.event_date.strftime('%Y-%m-%d')))
     start_time, end_time = '', ''
     if entry.time:
         parts = [part.strip() for part in entry.time.split('-')]
@@ -199,10 +222,12 @@ def edit_schedule(entry_id):
         except Exception:
             pass
 
+    target = 'proprietor' if entry.schedule_type == 'proprietor' else 'ceo'
     return render_template(
         'admin_schedule_form.html',
         entry=entry,
         users=users,
+        target=target,
         start_hour=start_hour,
         start_minute=start_minute,
         start_meridiem=start_meridiem,
@@ -216,10 +241,11 @@ def edit_schedule(entry_id):
 @schedule_manage_required
 def delete_schedule(entry_id):
     entry = ScheduleEntry.query.get_or_404(entry_id)
+    target_v = 'proprietor' if entry.schedule_type == 'proprietor' else 'ceo'
     db.session.delete(entry)
     db.session.commit()
     flash('Schedule entry deleted.', 'success')
-    return redirect(url_for('dashboard.schedule'))
+    return redirect(url_for('dashboard.schedule', view_type=target_v))
 
 
 @admin_bp.route('/admin/users', methods=['GET'])
@@ -349,8 +375,6 @@ def notify_attendants(entry_id):
     if notified_count > 0:
         db.session.commit()
         flash(f'Notification sent to {notified_count} attendant(s) successfully.', 'success')
-    else:
-        flash('All attendants have already been notified about this activity.', 'info')
-        
-    return redirect(url_for('dashboard.schedule'))
+    target_v = 'proprietor' if entry.schedule_type == 'proprietor' else 'ceo'
+    return redirect(url_for('dashboard.schedule', view_type=target_v, date=entry.event_date.strftime('%Y-%m-%d')))
 

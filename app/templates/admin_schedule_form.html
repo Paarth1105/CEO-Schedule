@@ -73,7 +73,7 @@
         <label>Google Location (URL)</label>
         <input type="url" name="google_location" value="{{ entry.google_location if entry else '' }}" placeholder="https://maps.google.com/...">
         <label>Responsible Person</label>
-        <input type="text" name="responsible_person" value="{{ entry.responsible_person if entry else '' }}" required>
+        <input type="text" name="responsible_person" value="{{ entry.responsible_person if entry else (session.get('user_name') if session.get('user_role') == 'Proprietor' else '') }}" required>
         <label>Priority</label>
         <select name="priority">
             <option value="Urgent" {% if entry and entry.priority=='Urgent' %}selected{% endif %}>Urgent</option>

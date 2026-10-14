@@ -78,16 +78,24 @@ def check_and_send_10min_alerts(app):
                 if entry.google_location:
                     message += f"\n🔗 *Location Map:* {entry.google_location}"
 
-                print(f"[Scheduler] Triggering 10-min WhatsApp alert for Entry ID {entry.id}: {entry.activity}")
-                
-                ceo_user = User.query.filter(User.role.ilike('%CEO%')).first()
-                target_phone = ceo_user.phone_number if (ceo_user and ceo_user.phone_number) else None
-                target_email = ceo_user.email if (ceo_user and ceo_user.email) else None
+                if entry.schedule_type == 'proprietor':
+                    target_user = User.query.filter(User.role.ilike('proprietor')).first()
+                    target_label = "PROPRIETOR"
+                else:
+                    target_user = User.query.filter(User.role.ilike('%CEO%')).first()
+                    target_label = "CEO SIR"
+
+                target_phone = target_user.phone_number if (target_user and target_user.phone_number) else None
+                target_email = target_user.email if (target_user and target_user.email) else None
+
+                print(f"[Scheduler] Triggering 10-min alert for Entry ID {entry.id} ({target_label}): {entry.activity}")
 
                 # Dispatch to WhatsApp (primary), SMS, and Email
-                wa_sent = send_whatsapp(target_phone, message)
-                sms_sent = send_sms(target_phone, message)
-                email_sent = send_email(target_email, f"Reminder: {entry.activity} at {entry.time}", message)
+                if target_phone:
+                    send_whatsapp(target_phone, message)
+                    send_sms(target_phone, message)
+                if target_email:
+                    send_email(target_email, f"Reminder: {entry.activity} at {entry.time}", message)
 
                 entry.alert_sent_10m = True
                 db.session.commit()
@@ -110,7 +118,11 @@ def send_daily_9am_whatsapp_digest(app, force=False):
         if DAILY_DIGEST_SENT_DATE == today and not force:
             return True
 
-        today_entries = ScheduleEntry.query.filter_by(event_date=today).order_by(ScheduleEntry.time.asc()).all()
+        today_entries = ScheduleEntry.query.filter(
+            ScheduleEntry.event_date == today,
+            or_(ScheduleEntry.schedule_type == 'ceo', ScheduleEntry.schedule_type.is_(None)),
+            ScheduleEntry.schedule_type != 'proprietor'
+        ).order_by(ScheduleEntry.time.asc()).all()
 
         if not today_entries and not force:
             print(f"[Scheduler] 9 AM Check: Schedule for today ({today}) is NOT READY yet. Will send schedule image card automatically once created.")
@@ -147,17 +159,23 @@ def check_and_trigger_pending_daily_digest(app, event_date):
         send_daily_9am_whatsapp_digest(app, force=True)
 
 def notify_ceo_on_event_change(entry, action="created"):
-    """Instantly send a WhatsApp alert to CEO Sir whenever an event is created or modified."""
+    """Instantly send a WhatsApp alert to CEO Sir or Proprietor whenever an event is created or modified."""
     from app.models.user import User
 
-    ceo_user = User.query.filter(User.role.ilike('%CEO%')).first()
-    target_phone = ceo_user.phone_number if (ceo_user and ceo_user.phone_number) else None
+    if entry.schedule_type == 'proprietor':
+        target_user = User.query.filter(User.role.ilike('proprietor')).first()
+        target_label = "PROPRIETOR"
+    else:
+        target_user = User.query.filter(User.role.ilike('%CEO%')).first()
+        target_label = "CEO SIR"
 
-    action_label = "NEW EVENT SCHEDULED" if action == "created" else "EVENT UPDATED"
+    target_phone = target_user.phone_number if (target_user and target_user.phone_number) else None
+
+    action_label = f"NEW EVENT SCHEDULED FOR {target_label}" if action == "created" else f"EVENT UPDATED FOR {target_label}"
     date_str = entry.event_date.strftime("%d %b %Y") if entry.event_date else "Today"
 
     message = (
-        f"📢 *[{action_label} FOR CEO SIR]*\n\n"
+        f"📢 *[{action_label}]*\n\n"
         f"📌 *Activity:* {entry.activity}\n"
         f"📅 *Date:* {date_str}\n"
         f"⏰ *Time:* {entry.time}\n"
@@ -170,8 +188,9 @@ def notify_ceo_on_event_change(entry, action="created"):
     if entry.google_location:
         message += f"\n🔗 *Location Map:* {entry.google_location}"
 
-    print(f"[Scheduler] Sending instant WhatsApp event notification ({action}): {entry.activity}")
-    send_whatsapp(target_phone, message)
+    print(f"[Scheduler] Sending instant WhatsApp event notification ({action}) for {target_label}: {entry.activity}")
+    if target_phone:
+        send_whatsapp(target_phone, message)
 
 def init_scheduler(app):
     """Initialize APScheduler with background jobs."""
