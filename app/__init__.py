@@ -32,6 +32,7 @@ print("DATABASE_URL =", repr(database_url))
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # Force SSL Mode for PostgreSQL connections (Fixes SSL closed unexpectedly error)
 if database_url and "postgresql" in database_url:
