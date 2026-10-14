@@ -35,7 +35,9 @@
     <div class="filter-group" style="margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap;">
         <a class="pill {% if view_type == 'ceo' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='ceo', range=range_filter, rescheduled='1' if rescheduled else '') }}">CEO Schedule</a>
         <a class="pill {% if view_type == 'proprietor' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='proprietor', range=range_filter, rescheduled='1' if rescheduled else '') }}">Proprietor Schedule</a>
+        {% if view_type != 'proprietor' and current_user.role != 'Proprietor' %}
         <a class="pill {% if view_type == 'mine' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='mine', range=range_filter, rescheduled='1' if rescheduled else '') }}">My Schedule</a>
+        {% endif %}
     </div>
     {% if view_type == 'employee' and target_employee %}
     <div style="margin-bottom: 20px;">
