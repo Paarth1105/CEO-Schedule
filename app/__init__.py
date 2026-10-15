@@ -10,11 +10,27 @@ parent_dir = os.path.dirname(basedir)
 app = Flask(__name__, instance_path=os.path.join(parent_dir, 'instance'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
-# Allow configuring a Postgres (or any SQLALCHEMY) database via environment variable
+# Automatically load .env if present
+env_path = os.path.join(parent_dir, '.env')
+if os.path.exists(env_path):
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, val = line.split('=', 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    if key:
+                        os.environ[key] = val
+    except Exception as e:
+        print("Error reading .env:", e)
+
+# Production PostgreSQL database URL
+DEFAULT_PG_URL = "postgresql://postgres:Software%402026@127.0.0.1:5432/ceo_schedule"
 database_url = os.environ.get("DATABASE_URL")
 
 if database_url:
-    # Render sometimes provides postgres://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace(
             "postgres://",
@@ -22,11 +38,7 @@ if database_url:
             1
         )
 else:
-    database_url = "sqlite:///" + os.path.join(
-        parent_dir,
-        "instance",
-        "schedule_app.db"
-    )
+    database_url = DEFAULT_PG_URL
 
 print("DATABASE_URL =", repr(database_url))
 
@@ -34,12 +46,11 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
-# Force SSL Mode for PostgreSQL connections (Fixes SSL closed unexpectedly error)
+# Disable pooling disconnect issues
 if database_url and "postgresql" in database_url:
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "connect_args": {
-            # # # "sslmode": "require"
-        }
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
     }
 
 db = SQLAlchemy(app)

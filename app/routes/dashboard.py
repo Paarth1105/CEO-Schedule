@@ -39,7 +39,14 @@ def schedule():
     rescheduled_only = request.args.get('rescheduled') == '1'
     current_user = User.query.get(session['user_id'])
     
-    view_type = request.args.get('view_type', 'ceo')
+    # Default to proprietor schedule if logged in user is Proprietor, else ceo schedule
+    default_view = 'proprietor' if (current_user and current_user.role == 'Proprietor') else 'ceo'
+    view_type = request.args.get('view_type', default_view)
+    
+    # If Proprietor attempts to access 'mine', redirect to 'proprietor'
+    if current_user and current_user.role == 'Proprietor' and view_type == 'mine':
+        return redirect(url_for('dashboard.schedule', view_type='proprietor', range=range_filter, rescheduled='1' if rescheduled_only else ''))
+
     employee_id = request.args.get('employee_id', type=int)
     target_employee = None
 
@@ -81,17 +88,14 @@ def schedule():
     # Filter based on view_type and user role
     if view_type == 'mine':
         if current_user.role == 'Proprietor':
-            proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
-            p_id = proprietor_user.id if proprietor_user else current_user.id
-            query = query.filter(or_(ScheduleEntry.schedule_type == 'proprietor', ScheduleEntry.user_id == p_id))
-        else:
-            query = query.filter(ScheduleEntry.user_id == current_user.id)
+            return redirect(url_for('dashboard.schedule', view_type='proprietor', range=range_filter, rescheduled='1' if rescheduled_only else ''))
+        query = query.filter(ScheduleEntry.user_id == current_user.id)
     elif view_type == 'proprietor':
         proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+        p_conditions = [ScheduleEntry.schedule_type == 'proprietor']
         if proprietor_user:
-            query = query.filter(or_(ScheduleEntry.schedule_type == 'proprietor', ScheduleEntry.user_id == proprietor_user.id))
-        else:
-            query = query.filter(ScheduleEntry.schedule_type == 'proprietor')
+            p_conditions.append(ScheduleEntry.user_id == proprietor_user.id)
+        query = query.filter(or_(*p_conditions))
     elif view_type == 'employee' and (current_user.is_admin_role() or current_user.role == 'Proprietor'):
         if employee_id:
             target_employee = User.query.get(employee_id)
@@ -101,9 +105,9 @@ def schedule():
     else:
         view_type = 'ceo'
         query = query.filter(
-            ScheduleEntry.user_id.is_(None),
             or_(ScheduleEntry.schedule_type == 'ceo', ScheduleEntry.schedule_type.is_(None)),
-            ScheduleEntry.schedule_type != 'proprietor'
+            ScheduleEntry.schedule_type != 'proprietor',
+            ScheduleEntry.schedule_type != 'employee'
         )
 
     if rescheduled_only:
@@ -433,6 +437,7 @@ def new_employee_schedule():
             remark=remark,
             reschedule=reschedule,
             given_time=given_time,
+            schedule_type='employee',
             user_id=current_user.id
         )
         db.session.add(entry)
