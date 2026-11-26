@@ -11,21 +11,35 @@ echo ========================================================
 echo Updating and Restarting CEO Schedule on Port 5000...
 echo ========================================================
 
-echo [1/5] Pulling latest updates from GitHub...
+echo [1/6] Pulling latest updates from GitHub...
 cd /d "C:\Apps\CEO-Schedule"
 git pull origin main
 
-echo [2/5] Stopping existing services and freeing port 5000...
+echo [2/6] Running automated backup...
+if exist ".venv\Scripts\python.exe" (
+    .venv\Scripts\python.exe auto_backup.py
+) else (
+    python auto_backup.py
+)
+
+echo [3/6] Running safe database schema migrations...
+if exist ".venv\Scripts\python.exe" (
+    .venv\Scripts\python.exe migrations\migrate_multi_role.py upgrade
+) else (
+    python migrations\migrate_multi_role.py upgrade
+)
+
+echo [4/6] Stopping existing services and freeing port 5000...
 net stop CEOScheduleApp >nul 2>&1
 net stop CEOScheduleService >nul 2>&1
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
 
-echo [3/5] Starting CEOScheduleApp service...
+echo [5/6] Starting CEOScheduleApp service...
 net start CEOScheduleApp
 
 timeout /t 3 >nul
 
-echo [4/5] Verifying port 5000...
+echo [6/6] Verifying port 5000 and testing live endpoint...
 netstat -ano | findstr :5000
 if %errorlevel% neq 0 (
     echo Service port binding pending, starting runner...
@@ -33,7 +47,6 @@ if %errorlevel% neq 0 (
     timeout /t 3 >nul
 )
 
-echo [5/5] Testing live HTTP endpoint...
 curl.exe -I http://127.0.0.1:5000
 
 echo ========================================================
