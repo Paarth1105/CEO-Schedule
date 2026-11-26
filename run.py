@@ -20,6 +20,6 @@ from app import app
 from waitress import serve
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5005))
+    port = int(os.environ.get('PORT', 5000))
     print(f"Starting CEO-Schedule on Port {port}...")
     serve(app, host='0.0.0.0', port=port)
