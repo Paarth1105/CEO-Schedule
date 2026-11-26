@@ -1,14 +1,27 @@
 from datetime import datetime, date, timedelta
 import json
 import io
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash, send_file, Response
-from sqlalchemy import or_
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, send_file, Response, jsonify
+from sqlalchemy import or_, func
 from app import db
-from app.models.schedule import ScheduleEntry
+from app.constants import (
+    DASHBOARD_TABS,
+    DASHBOARD_TAB_LABELS,
+    DESIGNATED_POSITIONS,
+    DESIGNATED_POSITION_KEYS,
+    DESIGNATED_POSITION_LABELS,
+)
+from app.models.schedule import ScheduleEntry, MeetingParticipant, ScheduleAuditLog
 from app.models.request import RequestMessage
 from app.models.user import User
 from app.models.notification import Notification
 from app.models.agenda_mom import Agenda, MOM
+from app.services.schedule_sync import (
+    get_position_holders_map,
+    get_schedule_state_version,
+    toggle_entry_participant_user,
+    toggle_entry_position,
+)
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from reportlab.lib.pagesizes import letter
@@ -38,14 +51,11 @@ def schedule():
     range_filter = request.args.get('range', 'today')
     rescheduled_only = request.args.get('rescheduled') == '1'
     current_user = User.query.get(session['user_id'])
-    
-    # Default to proprietor schedule if logged in user is Proprietor, else ceo schedule
-    default_view = 'proprietor' if (current_user and current_user.role == 'Proprietor') else 'ceo'
-    view_type = request.args.get('view_type', default_view)
-    
-    # If Proprietor attempts to access 'mine', redirect to 'proprietor'
-    if current_user and current_user.role == 'Proprietor' and view_type == 'mine':
-        return redirect(url_for('dashboard.schedule', view_type='proprietor', range=range_filter, rescheduled='1' if rescheduled_only else ''))
+
+    # Default to the logged-in designated role's schedule, else CEO schedule
+    own_pos = current_user.designated_position_key() if current_user else None
+    default_view = own_pos if own_pos else 'ceo'
+    view_type = (request.args.get('view_type') or default_view).strip().lower()
 
     employee_id = request.args.get('employee_id', type=int)
     target_employee = None
@@ -85,37 +95,93 @@ def schedule():
         else:
             query = query.filter(ScheduleEntry.event_date >= start_date, ScheduleEntry.event_date <= today)
 
-    # Filter based on view_type and user role
+    # Exclude cancelled meetings from active calendars
+    query = query.filter(ScheduleEntry.status != 'Cancelled')
+
+    # Filter based on view_type and participant relationships
     if view_type == 'mine':
-        if current_user.role == 'Proprietor':
-            return redirect(url_for('dashboard.schedule', view_type='proprietor', range=range_filter, rescheduled='1' if rescheduled_only else ''))
-        query = query.filter(ScheduleEntry.user_id == current_user.id)
-    elif view_type == 'proprietor':
-        proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
-        p_conditions = [ScheduleEntry.schedule_type == 'proprietor']
-        if proprietor_user:
-            p_conditions.append(ScheduleEntry.user_id == proprietor_user.id)
-        query = query.filter(or_(*p_conditions))
+        mine_conditions = [
+            ScheduleEntry.user_id == current_user.id,
+            ScheduleEntry.id.in_(
+                db.session.query(MeetingParticipant.schedule_entry_id).filter(
+                    MeetingParticipant.user_id == current_user.id
+                )
+            ),
+        ]
+        if own_pos:
+            mine_conditions.append(
+                ScheduleEntry.id.in_(
+                    db.session.query(MeetingParticipant.schedule_entry_id).filter(
+                        MeetingParticipant.position_key == own_pos
+                    )
+                )
+            )
+        query = query.filter(or_(*mine_conditions))
+    elif view_type == 'combined':
+        combined_subq = (
+            db.session.query(MeetingParticipant.schedule_entry_id)
+            .filter(MeetingParticipant.position_key.in_(DESIGNATED_POSITION_KEYS))
+            .group_by(MeetingParticipant.schedule_entry_id)
+            .having(func.count(func.distinct(MeetingParticipant.position_key)) == len(DESIGNATED_POSITION_KEYS))
+        )
+        query = query.filter(ScheduleEntry.id.in_(combined_subq))
+    elif view_type in DESIGNATED_POSITION_LABELS:
+        pos_subq = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+            MeetingParticipant.position_key == view_type
+        )
+        if view_type == 'proprietor':
+            proprietor_user = User.query.filter(User.role.ilike('proprietor')).first()
+            p_conditions = [
+                ScheduleEntry.id.in_(pos_subq),
+                ScheduleEntry.schedule_type == 'proprietor',
+            ]
+            if proprietor_user:
+                p_conditions.append(ScheduleEntry.user_id == proprietor_user.id)
+            query = query.filter(or_(*p_conditions))
+        elif view_type == 'ceo':
+            has_any_part = db.session.query(MeetingParticipant.schedule_entry_id)
+            query = query.filter(
+                or_(
+                    ScheduleEntry.id.in_(pos_subq),
+                    db.session.query(ScheduleEntry.id)
+                    .filter(
+                        or_(ScheduleEntry.schedule_type == 'ceo', ScheduleEntry.schedule_type.is_(None)),
+                        ScheduleEntry.user_id.is_(None),
+                        ~ScheduleEntry.id.in_(has_any_part),
+                    )
+                    .correlate(ScheduleEntry)
+                    .exists(),
+                )
+            )
+        else:
+            query = query.filter(ScheduleEntry.id.in_(pos_subq))
     elif view_type == 'employee' and (current_user.is_admin_role() or current_user.role == 'Proprietor'):
         if employee_id:
             target_employee = User.query.get(employee_id)
-            query = query.filter(ScheduleEntry.user_id == employee_id)
+            emp_part_subq = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+                MeetingParticipant.user_id == employee_id
+            )
+            query = query.filter(
+                or_(
+                    ScheduleEntry.user_id == employee_id,
+                    ScheduleEntry.id.in_(emp_part_subq),
+                )
+            )
         else:
-            query = query.filter(ScheduleEntry.user_id == -1) # empty
+            query = query.filter(ScheduleEntry.user_id == -1)
     else:
         view_type = 'ceo'
-        query = query.filter(
-            or_(ScheduleEntry.schedule_type == 'ceo', ScheduleEntry.schedule_type.is_(None)),
-            ScheduleEntry.schedule_type != 'proprietor',
-            ScheduleEntry.schedule_type != 'employee'
+        pos_subq = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+            MeetingParticipant.position_key == 'ceo'
         )
+        query = query.filter(ScheduleEntry.id.in_(pos_subq))
 
     if rescheduled_only:
         query = query.filter(ScheduleEntry.reschedule == 'YES')
         range_label = f"{range_label} - Rescheduled"
 
-    entries = query.order_by(ScheduleEntry.event_date.asc()).all()
-    
+    entries = query.distinct().order_by(ScheduleEntry.event_date.asc()).all()
+
     def get_start_time_sort_key(entry):
         time_str = entry.time or ''
         start_part = time_str.split('-')[0].strip() if '-' in time_str else time_str.strip()
@@ -132,7 +198,8 @@ def schedule():
                 return (1, start_part, 0)
 
     entries.sort(key=lambda x: (x.event_date, get_start_time_sort_key(x), x.id))
-    users = User.query.order_by(User.name.asc()).all()
+    users = User.query.filter(User.is_active.is_(True)).order_by(User.name.asc()).all()
+    position_holders = get_position_holders_map()
 
     # Determine the date of the schedule in words and for the filename
     if focus_date:
@@ -162,6 +229,11 @@ def schedule():
         formatted_schedule_date = f"{formatted_schedule_date} (Rescheduled)"
         filename_date = f"{filename_date}_rescheduled"
 
+    if view_type == 'employee' and target_employee:
+        view_title = f"{target_employee.name}'s Schedule"
+    else:
+        view_title = DASHBOARD_TAB_LABELS.get(view_type, 'CEO Schedule')
+
     return render_template(
         'dashboard.html',
         entries=entries,
@@ -171,11 +243,22 @@ def schedule():
         range_label=range_label,
         rescheduled=rescheduled_only,
         view_type=view_type,
+        view_title=view_title,
+        dashboard_tabs=DASHBOARD_TABS,
+        designated_positions=DESIGNATED_POSITIONS,
+        position_holders=position_holders,
         target_employee=target_employee,
         users=users,
         formatted_schedule_date=formatted_schedule_date,
         filename_date=filename_date,
+        schedule_version=get_schedule_state_version(),
     )
+
+
+@dashboard_bp.route('/api/schedule/version')
+@login_required
+def schedule_version():
+    return jsonify({'version': get_schedule_state_version()})
 
 
 @dashboard_bp.route('/generate-request', methods=['GET', 'POST'])
@@ -355,28 +438,39 @@ def feedback_history():
 @login_required
 def calendar_view():
     current_user = User.query.get(session['user_id'])
-    if current_user.is_admin_role() or current_user.role == 'Proprietor':
-        # SA/PA/Admin/Proprietor can see CEO & Proprietor schedule on the calendar
+    own_pos = current_user.designated_position_key() if current_user else None
+
+    if current_user.is_admin_role():
         entries = ScheduleEntry.query.filter(
+            ScheduleEntry.status != 'Cancelled'
+        ).order_by(ScheduleEntry.event_date.asc()).all()
+    else:
+        visible_positions = ['ceo', 'proprietor']
+        if own_pos and own_pos not in visible_positions:
+            visible_positions.append(own_pos)
+
+        pos_subq = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+            MeetingParticipant.position_key.in_(visible_positions)
+        )
+        user_part_subq = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+            MeetingParticipant.user_id == current_user.id
+        )
+        entries = ScheduleEntry.query.filter(
+            ScheduleEntry.status != 'Cancelled',
             or_(
                 ScheduleEntry.user_id.is_(None),
                 ScheduleEntry.schedule_type.in_(['ceo', 'proprietor']),
-                ScheduleEntry.user_id == current_user.id
-            )
-        ).order_by(ScheduleEntry.event_date.asc()).all()
-    else:
-        # Employees see CEO & Proprietor schedule and their own personal schedule
-        entries = ScheduleEntry.query.filter(
-            or_(
-                ScheduleEntry.user_id.is_(None), ScheduleEntry.schedule_type.in_(['ceo', 'proprietor']), ScheduleEntry.user_id == current_user.id
-            )
-        ).order_by(ScheduleEntry.event_date.asc()).all()
+                ScheduleEntry.user_id == current_user.id,
+                ScheduleEntry.id.in_(pos_subq),
+                ScheduleEntry.id.in_(user_part_subq),
+            ),
+        ).distinct().order_by(ScheduleEntry.event_date.asc()).all()
 
     events = [
         {
             'date': entry.event_date.strftime('%Y-%m-%d'),
             'activity': entry.activity,
-            'priority': entry.priority
+            'priority': entry.priority,
         }
         for entry in entries
     ]
@@ -390,7 +484,7 @@ def employees_list():
     if not (current_user.is_admin_role() or current_user.role == 'Proprietor'):
         flash('Only Personal Assistant, Senior Assistant, Admin, or Proprietor can view employees.', 'danger')
         return redirect(url_for('dashboard.schedule'))
-    employees = User.query.all()
+    employees = User.query.filter(User.is_active.is_(True)).order_by(User.name.asc()).all()
     return render_template('employees.html', employees=employees, current_user=current_user)
 
 
@@ -438,9 +532,21 @@ def new_employee_schedule():
             reschedule=reschedule,
             given_time=given_time,
             schedule_type='employee',
-            user_id=current_user.id
+            user_id=current_user.id,
+            created_by_id=current_user.id,
+            updated_by_id=current_user.id,
         )
         db.session.add(entry)
+        db.session.flush()
+        db.session.add(
+            ScheduleAuditLog(
+                schedule_entry_id=entry.id,
+                entry_snapshot_title=entry.activity,
+                actor_id=current_user.id,
+                action='created',
+                details=f"Personal schedule created for {event_date}",
+            )
+        )
         db.session.commit()
         flash('Schedule entry created successfully.', 'success')
         return redirect(url_for('dashboard.schedule', view_type='mine', date=event_date.strftime('%Y-%m-%d')))
@@ -488,7 +594,17 @@ def edit_employee_schedule(entry_id):
         entry.remark = request.form.get('remark', entry.remark)
         entry.reschedule = request.form.get('reschedule', entry.reschedule)
         entry.given_time = request.form.get('given_time', '').strip()
+        entry.updated_by_id = current_user.id
 
+        db.session.add(
+            ScheduleAuditLog(
+                schedule_entry_id=entry.id,
+                entry_snapshot_title=entry.activity,
+                actor_id=current_user.id,
+                action='updated',
+                details=f"Personal schedule updated for {entry.event_date}",
+            )
+        )
         db.session.commit()
         flash('Schedule entry updated.', 'success')
 
@@ -551,6 +667,15 @@ def delete_employee_schedule(entry_id):
         flash('Not authorized to delete this schedule entry.', 'danger')
         return redirect(url_for('dashboard.schedule'))
 
+    db.session.add(
+        ScheduleAuditLog(
+            schedule_entry_id=None,
+            entry_snapshot_title=entry.activity,
+            actor_id=current_user.id,
+            action='deleted',
+            details=f"Personal schedule deleted for {entry.event_date}",
+        )
+    )
     db.session.delete(entry)
     db.session.commit()
     flash('Schedule entry deleted.', 'success')
@@ -626,13 +751,13 @@ def acknowledge_notification(notif_id):
 
     notif.acknowledged = True
 
-    # Automatically add to attendants list if this notification is associated with a schedule entry (meeting)
+    # Automatically add to attendants/participants if associated with a schedule entry
     if notif.schedule_entry_id:
         entry = ScheduleEntry.query.get(notif.schedule_entry_id)
         if entry:
             user = User.query.get(notif.user_id)
-            if user and user not in entry.attendants:
-                entry.attendants.append(user)
+            if user and user.id not in entry.participant_user_ids:
+                toggle_entry_participant_user(entry, user, actor_user=user)
 
     db.session.commit()
     flash('Notification acknowledged.', 'success')
@@ -652,59 +777,87 @@ def notifications():
             user_id=current_user.id,
             acknowledged=True
         ).order_by(Notification.created_at.desc()).all()
-    
+
     return render_template('notifications.html', notifications=acknowledged_notifs, current_user=current_user)
 
 
 @dashboard_bp.route('/schedule/<int:entry_id>/toggle-attendance', methods=['POST'])
 @login_required
 def toggle_attendance(entry_id):
-    from flask import jsonify
     entry = ScheduleEntry.query.get_or_404(entry_id)
     current_user = User.query.get(session['user_id'])
-    
-    if current_user in entry.attendants:
-        entry.attendants.remove(current_user)
-        action = 'removed'
-    else:
-        entry.attendants.append(current_user)
-        action = 'added'
-        
-    db.session.commit()
+
+    try:
+        action, participants = toggle_entry_participant_user(entry, current_user, actor_user=current_user)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': 'Failed to update attendance.'}), 500
+
     return jsonify({
         'status': 'success',
         'action': action,
         'user_name': current_user.name,
         'user_id': current_user.id,
-        'attendants': [u.name for u in entry.attendants]
+        'attendants': [p['display'] for p in participants],
+        'participants': participants,
+        'is_combined': entry.is_combined_meeting,
     })
 
 
 @dashboard_bp.route('/schedule/<int:entry_id>/toggle-user-attendance/<int:user_id>', methods=['POST'])
 @login_required
 def toggle_user_attendance(entry_id, user_id):
-    from flask import jsonify
     current_user = User.query.get(session['user_id'])
-    if not (current_user.is_admin_role() or current_user.role == 'Proprietor'):
-        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
-        
     entry = ScheduleEntry.query.get_or_404(entry_id)
+    if not entry.can_be_modified_by(current_user):
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
     target_user = User.query.get_or_404(user_id)
-    
-    if target_user in entry.attendants:
-        entry.attendants.remove(target_user)
-        action = 'removed'
-    else:
-        entry.attendants.append(target_user)
-        action = 'added'
-        
-    db.session.commit()
+
+    try:
+        action, participants = toggle_entry_participant_user(entry, target_user, actor_user=current_user)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': 'Failed to update participant.'}), 500
+
     return jsonify({
         'status': 'success',
         'action': action,
         'user_name': target_user.name,
         'user_id': target_user.id,
-        'attendants': [u.name for u in entry.attendants]
+        'attendants': [p['display'] for p in participants],
+        'participants': participants,
+        'is_combined': entry.is_combined_meeting,
+    })
+
+
+@dashboard_bp.route('/schedule/<int:entry_id>/toggle-position/<position_key>', methods=['POST'])
+@login_required
+def toggle_position_attendance(entry_id, position_key):
+    current_user = User.query.get(session['user_id'])
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    if not entry.can_be_modified_by(current_user):
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
+    try:
+        action, participants = toggle_entry_position(entry, position_key, actor_user=current_user)
+        db.session.commit()
+    except ValueError as ve:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(ve)}), 400
+    except Exception:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': 'Failed to update position participant.'}), 500
+
+    return jsonify({
+        'status': 'success',
+        'action': action,
+        'position_key': position_key,
+        'attendants': [p['display'] for p in participants],
+        'participants': participants,
+        'is_combined': entry.is_combined_meeting,
     })
 
 
@@ -789,8 +942,8 @@ def generate_mom_pdf_data(mom):
     
     chairperson_val = mom.schedule_entry.responsible_person if (mom.schedule_entry and mom.schedule_entry.responsible_person) else "-"
     attendants_list = []
-    if mom.schedule_entry and mom.schedule_entry.attendants:
-        attendants_list = [u.name for u in mom.schedule_entry.attendants]
+    if mom.schedule_entry:
+        attendants_list = [p['display'] for p in mom.schedule_entry.display_participants()]
     attendants_val = ", ".join(attendants_list) if attendants_list else "-"
     
     meta_data = [
@@ -1076,7 +1229,9 @@ def make_mom_word_html(mom):
         """
         
     chair_val = mom.schedule_entry.responsible_person if (mom.schedule_entry and mom.schedule_entry.responsible_person) else "-"
-    att_val = ", ".join([u.name for u in mom.schedule_entry.attendants]) if (mom.schedule_entry and mom.schedule_entry.attendants) else "-"
+    att_val = ", ".join([p['display'] for p in mom.schedule_entry.display_participants()]) if mom.schedule_entry else "-"
+    if not att_val:
+        att_val = "-"
         
     html = f"""
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1277,7 +1432,9 @@ def generate_mom_excel_data(mom):
     ws.row_dimensions[1].height = 30
     
     chair_val = mom.schedule_entry.responsible_person if (mom.schedule_entry and mom.schedule_entry.responsible_person) else "-"
-    att_val = ", ".join([u.name for u in mom.schedule_entry.attendants]) if (mom.schedule_entry and mom.schedule_entry.attendants) else "-"
+    att_val = ", ".join([p['display'] for p in mom.schedule_entry.display_participants()]) if mom.schedule_entry else "-"
+    if not att_val:
+        att_val = "-"
     
     meta_rows = [
         ("Meeting Date:", mom.meeting_date or "-"),
@@ -1356,7 +1513,7 @@ def agenda_edit(entry_id):
         time = entry.time or ""
         location = entry.location or ""
         chairperson = entry.responsible_person or ""
-        attendants = ", ".join([u.name for u in entry.attendants])
+        attendants = ", ".join([p['display'] for p in entry.display_participants()])
         
         objective = f"The objective of this meeting is to discuss and coordinate on the activity: '{entry.activity}'."
         if entry.remark:

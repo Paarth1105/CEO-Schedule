@@ -11,6 +11,8 @@
         <input type="text" name="designation" required>
         <label>Email</label>
         <input type="email" name="email" required>
+        <label>Phone Number (Optional)</label>
+        <input type="text" name="phone_number" placeholder="+919876543210">
         <label>Password</label>
         <input type="password" name="password" id="password" required>
         <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 12px 0;">
@@ -22,17 +24,25 @@
             <option value="Employee">Employee</option>
             <option value="Personal Assistant">Personal Assistant</option>
             <option value="Senior Assistant">Senior Assistant</option>
-            {% if not admin_exists %}
-            <option value="Admin">Admin</option>
+            {% for role_name in new_unique_roles %}
+            {% if role_name.lower() in occupied_roles %}
+            <option value="{{ role_name }}" disabled>{{ role_name }} (Occupied - Already Assigned)</option>
             {% else %}
-            <option value="Admin" disabled>Admin (Locked - Already Configured)</option>
+            <option value="{{ role_name }}">{{ role_name }}</option>
             {% endif %}
+            {% endfor %}
             {% if not proprietor_exists %}
             <option value="Proprietor">Proprietor</option>
             {% else %}
             <option value="Proprietor" disabled>Proprietor (Locked - Already Registered)</option>
             {% endif %}
+            {% if not admin_exists %}
+            <option value="Admin">Admin</option>
+            {% else %}
+            <option value="Admin" disabled>Admin (Locked - Already Configured)</option>
+            {% endif %}
         </select>
+        <small style="color: var(--muted); font-size: 0.8rem;">Unique leadership roles (AGM, Operation Manager, Admin In Charge, HR Manager, Proprietor, Admin) allow only one active account.</small>
         <button type="submit">Register</button>
     </form>
     <p class="helper">Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a></p>

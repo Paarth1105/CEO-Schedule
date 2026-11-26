@@ -4,7 +4,7 @@
     <div class="section-header" style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px;">
         <div>
             <h2 style="color: var(--primary); margin: 0 0 4px 0;">User Management Portal</h2>
-            <p style="color: var(--muted); margin: 0;">View credentials, update phone numbers, reset passwords, or delete users.</p>
+            <p style="color: var(--muted); margin: 0;">View credentials, update roles, activate/deactivate accounts, reset passwords, or delete users.</p>
         </div>
         <div>
             <a class="btn" href="{{ url_for('auth.register') }}" style="display: inline-flex; align-items: center; gap: 8px;">
@@ -23,13 +23,14 @@
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Department</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Designation</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Role</th>
+                    <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Status</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border);">Password</th>
                     <th style="padding: 12px; font-weight: 600; border-bottom: 2px solid var(--border); text-align: center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for u in users %}
-                <tr style="border-bottom: 1px solid var(--border);">
+                <tr style="border-bottom: 1px solid var(--border); {% if not u.is_active %}opacity: 0.65;{% endif %}">
                     <td style="padding: 12px;"><strong>{{ u.name }}</strong></td>
                     <td style="padding: 12px;">{{ u.phone_number or '-' }}</td>
                     <td style="padding: 12px;">{{ u.email }}</td>
@@ -41,14 +42,26 @@
                         </span>
                     </td>
                     <td style="padding: 12px;">
+                        {% if u.is_active %}
+                        <span class="status-badge active">Active</span>
+                        {% else %}
+                        <span class="status-badge inactive">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px;">
                         <code style="font-family: monospace; background: var(--bg); padding: 4px 8px; border-radius: 4px; font-size: 0.9rem;">{{ u.password }}</code>
                     </td>
                     <td style="padding: 12px; text-align: center;">
-                        <div style="display: inline-flex; gap: 8px; justify-content: center; align-items: center;">
+                        <div style="display: inline-flex; gap: 6px; justify-content: center; align-items: center; flex-wrap: wrap;">
                             <a class="btn" href="{{ url_for('admin.edit_user', user_id=u.id) }}" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; background: var(--primary);">
                                 Edit
                             </a>
                             {% if session.get('user_id') != u.id %}
+                            <form action="{{ url_for('admin.toggle_user_active', user_id=u.id) }}" method="post" style="margin: 0; display: inline;">
+                                <button type="submit" class="btn" style="padding: 6px 10px; font-size: 0.82rem; border-radius: 6px; background: {% if u.is_active %}#b96a00{% else %}var(--success){% endif %}; color: white;">
+                                    {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </form>
                             <form action="{{ url_for('admin.delete_user', user_id=u.id) }}" method="post" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to delete user {{ u.name }}? This action cannot be undone.');">
                                 <button type="submit" class="btn danger" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; background: var(--danger); color: white;">
                                     Delete
@@ -69,7 +82,7 @@
 <div class="card" style="border: 1px dashed var(--primary); background: rgba(79, 70, 229, 0.03);">
     <h3 style="color: var(--primary); margin: 0 0 8px 0;">📲 CEO Notification Test Panel</h3>
     <p style="color: var(--muted); margin: 0 0 16px 0; font-size: 0.95rem;">Test SMS, Email, and WhatsApp daily schedule digest dispatch to verify API credentials and contact numbers.</p>
-    
+
     <form action="{{ url_for('admin.test_notifications') }}" method="post" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
         <div style="flex: 1; min-width: 200px;">
             <label style="font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px;">Target Phone Number</label>

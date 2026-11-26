@@ -34,8 +34,8 @@
         </a>
         <div class="nav-actions">
             {% if session.get('user_id') %}
-            {% if session.get('user_role') in ['Personal Assistant', 'Senior Assistant', 'Admin', 'Proprietor'] %}
-            <a class="nav-pill" href="{{ url_for('admin.new_schedule', date=request.args.get('date'), target='proprietor' if (view_type is defined and view_type == 'proprietor') or session.get('user_role') == 'Proprietor' else 'ceo') }}">Add Schedule</a>
+            {% if session.get('user_role') in ['Personal Assistant', 'Senior Assistant', 'Admin', 'Proprietor', 'AGM', 'Operation Manager', 'Admin In Charge', 'HR Manager', 'CEO'] %}
+            <a class="nav-pill" href="{{ url_for('admin.new_schedule', date=request.args.get('date'), target=view_type if view_type is defined else None) }}">Add Schedule</a>
             {% else %}
             <a class="nav-pill" href="{{ url_for('dashboard.new_employee_schedule', date=request.args.get('date')) }}">Add Schedule</a>
             {% endif %}

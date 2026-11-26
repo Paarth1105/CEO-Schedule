@@ -4,7 +4,7 @@
     <div class="section-header">
         <div>
             <h2 style="color: var(--primary); margin: 0 0 4px 0;">Edit User Profile</h2>
-            <p style="color: var(--muted); margin: 0;">Update account credentials, department, designation, or role for <strong>{{ user.name }}</strong>.</p>
+            <p style="color: var(--muted); margin: 0;">Update account credentials, department, designation, status, or role for <strong>{{ user.name }}</strong>.</p>
         </div>
     </div>
     <form method="post" class="stacked-form">
@@ -31,18 +31,29 @@
         <label class="field-card">
             <span>Role</span>
             <select name="role" required style="width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); color: var(--text);">
-                <option value="Employee" {% if user.role == 'Employee' %}selected{% endif %}>Employee</option>
-                <option value="Personal Assistant" {% if user.role == 'Personal Assistant' %}selected{% endif %}>Personal Assistant</option>
-                <option value="Senior Assistant" {% if user.role == 'Senior Assistant' %}selected{% endif %}>Senior Assistant</option>
-                <option value="Proprietor" {% if user.role == 'Proprietor' %}selected{% endif %}>Proprietor</option>
-                <option value="Admin" {% if user.role == 'Admin' %}selected{% endif %}>Admin</option>
+                {% for role_opt in allowed_roles %}
+                {% set is_occupied = (role_opt.lower() in occupied_roles) %}
+                <option value="{{ role_opt }}" {% if user.role == role_opt %}selected{% endif %} {% if is_occupied and user.role != role_opt %}disabled{% endif %}>
+                    {{ role_opt }}{% if is_occupied and user.role != role_opt %} (Occupied){% endif %}
+                </option>
+                {% endfor %}
             </select>
+        </label>
+        <label class="field-card" style="flex-direction: row; align-items: center; justify-content: space-between;">
+            <div>
+                <span style="display: block; font-weight: 600;">Account Active</span>
+                <small style="color: var(--muted);">Deactivating frees up any unique position held by this account.</small>
+            </div>
+            <input type="checkbox" name="is_active" value="1" {% if user.is_active %}checked{% endif %} {% if session.get('user_id') == user.id %}disabled{% endif %} style="width: 20px; height: 20px; cursor: pointer;">
+            {% if session.get('user_id') == user.id %}
+            <input type="hidden" name="is_active" value="1">
+            {% endif %}
         </label>
         <label class="field-card">
             <span>Password (Plain Text)</span>
             <input type="text" name="password" id="password" value="{{ user.password }}" required placeholder="Enter password">
         </label>
-        
+
         <div class="form-actions" style="margin-top: 10px;">
             <button type="submit" class="btn primary">Save Changes</button>
             <a href="{{ url_for('admin.manage_users') }}" class="btn" style="background: var(--surface-alt); color: var(--text); border: 1px solid var(--border);">Cancel</a>

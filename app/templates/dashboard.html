@@ -1,10 +1,20 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card dashboard-shell">
+<div class="card dashboard-shell" data-schedule-version="{{ schedule_version }}" data-view-type="{{ view_type }}">
     <div class="section-header">
         <div>
-            <h3>{% if view_type == 'proprietor' %}Proprietor Schedule{% elif view_type == 'mine' %}My Schedule{% elif view_type == 'employee' and target_employee %}{{ target_employee.name }}'s Schedule{% else %}CEO Schedule{% endif %}</h3>
-            <p>Showing {{ range_label }} with {{ entries|length }} scheduled event(s).</p>
+            <h3>{{ view_title }}</h3>
+            <p>
+                Showing {{ range_label }} with {{ entries|length }} scheduled event(s).
+                {% if view_type == 'combined' %}
+                <span class="meta-pill">All 6 Designated Positions</span>
+                {% elif position_holders is defined and view_type in position_holders %}
+                    {% set holder = position_holders.get(view_type) %}
+                    {% if holder %}
+                    <span class="meta-pill">Assigned: {{ holder.name }}</span>
+                    {% endif %}
+                {% endif %}
+            </p>
         </div>
         <form class="filter-toolbar" method="get" action="{{ url_for('dashboard.schedule') }}">
             <input type="hidden" name="view_type" value="{{ view_type }}">
@@ -32,15 +42,17 @@
         </form>
     </div>
 
-    <div class="filter-group" style="margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap;">
-        <a class="pill {% if view_type == 'ceo' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='ceo', range=range_filter, rescheduled='1' if rescheduled else '') }}">CEO Schedule</a>
-        <a class="pill {% if view_type == 'proprietor' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='proprietor', range=range_filter, rescheduled='1' if rescheduled else '') }}">Proprietor Schedule</a>
-        {% if view_type != 'proprietor' and current_user.role != 'Proprietor' %}
-        <a class="pill {% if view_type == 'mine' %}active{% endif %}" href="{{ url_for('dashboard.schedule', view_type='mine', range=range_filter, rescheduled='1' if rescheduled else '') }}">My Schedule</a>
-        {% endif %}
-    </div>
+    <nav class="schedule-tabs-bar" aria-label="Schedule Views">
+        {% for tab_key, tab_label in dashboard_tabs %}
+        <a class="pill schedule-tab {% if view_type == tab_key %}active{% endif %}"
+           href="{{ url_for('dashboard.schedule', view_type=tab_key, range=range_filter, rescheduled='1' if rescheduled else '') }}">
+            {{ tab_label }}
+        </a>
+        {% endfor %}
+    </nav>
+
     {% if view_type == 'employee' and target_employee %}
-    <div style="margin-bottom: 20px;">
+    <div style="margin-bottom: 16px;">
         <a class="inline-link" href="{{ url_for('dashboard.employees_list') }}">← Back to Employees</a>
     </div>
     {% endif %}
@@ -52,21 +64,35 @@
                 <tr>
                     <th>Date</th>
                     <th>Time</th>
+                    <th>Activity</th>
+                    <th>Location</th>
+                    <th class="col-google-location">Google Location</th>
+                    <th>Participants</th>
                     <th>Priority</th>
                     <th>Status</th>
                     <th>Reschedule</th>
-                    <th class="col-google-location">Google Location</th>
+                    <th class="col-agenda">Agenda</th>
+                    <th class="col-mom">MOM</th>
                     <th class="col-action">Options</th>
                 </tr>
             </thead>
             <tbody>
                 {% for entry in entries %}
-                <tr>
+                <tr data-entry-id="{{ entry.id }}">
                     <td>{{ entry.event_date.strftime('%A, %d - %B - %Y') }}</td>
                     <td>{{ entry.time }}</td>
-                    <td><span class="chip {{ entry.priority|lower }}">{{ entry.priority }}</span></td>
-                    <td>{{ entry.status }}</td>
-                    <td>{{ entry.reschedule }}</td>
+                    <td>
+                        <div class="activity-title-cell">
+                            <strong>{{ entry.activity }}</strong>
+                            {% if entry.is_combined_meeting %}
+                            <span class="common-meeting-badge" title="Includes all 6 designated positions">Common Meeting</span>
+                            {% endif %}
+                        </div>
+                        {% if entry.description %}
+                        <div class="activity-subtext">{{ entry.description }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ entry.location }}</td>
                     <td class="col-google-location">
                         {% if entry.google_location %}
                             <a href="{{ entry.google_location }}" target="_blank" class="inline-link">Google Map</a>
@@ -74,14 +100,51 @@
                             <span class="muted-text">-</span>
                         {% endif %}
                     </td>
-                    <td class="col-action">
-                        <a class="inline-link" href="{{ url_for('dashboard.edit_employee_schedule', entry_id=entry.id) }}">Edit</a>
+                    <td>
+                        <div class="attendants-names-list" id="attendants-list-{{ entry.id }}">
+                            {% set p_items = entry.display_participants() %}
+                            {% if p_items %}
+                                {% for p in p_items %}
+                                    <span class="attendant-name-badge {% if p.is_position %}position-chip{% endif %}">{{ p.display }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="muted-text">Personal</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td><span class="chip {{ entry.priority|lower }}">{{ entry.priority }}</span></td>
+                    <td>{{ entry.status }}</td>
+                    <td>{{ entry.reschedule }}</td>
+                    <td class="col-agenda">
+                        <a class="inline-link" href="{{ url_for('dashboard.agenda_edit', entry_id=entry.id) }}">Agenda</a>
                         <span style="color: var(--border);">|</span>
-                        <a class="inline-link" style="color: var(--danger);" href="{{ url_for('dashboard.delete_employee_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to delete this schedule entry?');">Delete</a>
+                        <a class="inline-link" href="{{ url_for('dashboard.agenda_view', entry_id=entry.id) }}">View</a>
+                    </td>
+                    <td class="col-mom">
+                        <a class="inline-link" href="{{ url_for('dashboard.mom_edit', entry_id=entry.id) }}">MOM</a>
+                        <span style="color: var(--border);">|</span>
+                        <a class="inline-link" href="{{ url_for('dashboard.mom_view', entry_id=entry.id) }}">View</a>
+                    </td>
+                    <td class="col-action">
+                        {% if entry.schedule_type == 'employee' and not entry.participant_position_keys %}
+                            {% if entry.user_id == current_user.id or current_user.is_admin_role() %}
+                            <a class="inline-link" href="{{ url_for('dashboard.edit_employee_schedule', entry_id=entry.id) }}">Edit</a>
+                            <span style="color: var(--border);">|</span>
+                            <a class="inline-link" style="color: var(--danger);" href="{{ url_for('dashboard.delete_employee_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to delete this schedule entry?');">Delete</a>
+                            {% else %}
+                            <span class="muted-text">-</span>
+                            {% endif %}
+                        {% elif entry.can_be_modified_by(current_user) %}
+                            <a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a>
+                            <span style="color: var(--border);">|</span>
+                            <a class="inline-link" style="color: var(--danger);" href="{{ url_for('admin.delete_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to cancel/delete this meeting?');">Delete</a>
+                        {% else %}
+                            <span class="muted-text">View Only</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="empty-state">No schedule entries available for this range.</td></tr>
+                <tr><td colspan="12" class="empty-state">No schedule entries available for this range.</td></tr>
                 {% endfor %}
             </tbody>
             {% else %}
@@ -96,21 +159,39 @@
                     <th>Responsible Person</th>
                     <th>Priority</th>
                     <th>Status</th>
-                    <th>Remark</th>
+                    <th>Remark / Notes</th>
                     <th>Reschedule</th>
-                    <th>Attendants</th>
+                    <th>Participants</th>
                     <th class="col-agenda">Agenda</th>
                     <th class="col-mom">MOM</th>
-                    {% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}<th class="col-action">Action</th>{% endif %}
+                    {% if current_user.can_create_meetings() %}<th class="col-action">Action</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for entry in entries %}
-                <tr>
+                <tr data-entry-id="{{ entry.id }}">
                     <td>{{ entry.event_date.strftime('%A, %d - %B - %Y') }}</td>
                     <td>{{ entry.time }}</td>
                     <td>{{ entry.given_time or '-' }}</td>
-                    <td>{{ entry.activity }}</td>
+                    <td>
+                        <div class="activity-title-cell">
+                            <strong>{{ entry.activity }}</strong>
+                            {% if entry.is_combined_meeting %}
+                            <span class="common-meeting-badge" id="combined-badge-{{ entry.id }}" title="Includes all 6 designated positions">Common Meeting</span>
+                            {% else %}
+                            <span class="common-meeting-badge" id="combined-badge-{{ entry.id }}" style="display: none;" title="Includes all 6 designated positions">Common Meeting</span>
+                            {% endif %}
+                        </div>
+                        {% if entry.meeting_type and entry.meeting_type != 'Meeting' %}
+                        <span class="meeting-type-tag">{{ entry.meeting_type }}</span>
+                        {% endif %}
+                        {% if entry.description %}
+                        <div class="activity-subtext">{{ entry.description }}</div>
+                        {% endif %}
+                        {% if entry.creator %}
+                        <div class="activity-meta-audit">Created by {{ entry.creator.name }} ({{ entry.creator.role }}){% if entry.updater and entry.updater.id != entry.creator.id %} • Edited by {{ entry.updater.name }}{% endif %}</div>
+                        {% endif %}
+                    </td>
                     <td>{{ entry.location }}</td>
                     <td class="col-google-location">
                         {% if entry.google_location %}
@@ -122,45 +203,64 @@
                     <td>{{ entry.responsible_person }}</td>
                     <td><span class="chip {{ entry.priority|lower }}">{{ entry.priority }}</span></td>
                     <td>{{ entry.status }}</td>
-                    <td>{{ entry.remark }}</td>
+                    <td>
+                        {% if entry.remark %}{{ entry.remark }}{% endif %}
+                        {% if entry.notes %}<div class="activity-subtext">{{ entry.notes }}</div>{% endif %}
+                        {% if not entry.remark and not entry.notes %}<span class="muted-text">-</span>{% endif %}
+                    </td>
                     <td>{{ entry.reschedule }}</td>
                     <td>
                         <div class="attendants-cell-wrapper" id="attendants-wrapper-{{ entry.id }}">
                             <div class="attendants-names-list" id="attendants-list-{{ entry.id }}">
-                                {% if entry.attendants %}
-                                    {% for att in entry.attendants %}
-                                        <span class="attendant-name-badge" title="{{ att.role }}">{{ att.name }}</span>{% if not loop.last %}, {% endif %}
+                                {% set p_items = entry.display_participants() %}
+                                {% if p_items %}
+                                    {% for p in p_items %}
+                                        <span class="attendant-name-badge {% if p.is_position %}position-chip{% endif %}" title="{{ p.sublabel or p.label }}">{{ p.display }}</span>
                                     {% endfor %}
                                 {% else %}
                                     <span class="muted-text">None</span>
                                 {% endif %}
                             </div>
-                            
-                            {% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}
+
+                            {% if entry.can_be_modified_by(current_user) %}
                             <div class="inline-manage-dropdown attend-toggle-ui">
                                 <button type="button" class="btn-manage-attendants dropdown-trigger" data-dropdown-id="dropdown-{{ entry.id }}">
                                     + Add/Remove
                                 </button>
                                 <div class="dropdown-menu inline-attendants-dropdown" id="dropdown-{{ entry.id }}">
-                                    <div class="dropdown-header">Manage Attendants</div>
+                                    <div class="dropdown-header">Designated Positions</div>
+                                    <div class="dropdown-list" style="max-height: 165px;">
+                                        {% for pos_key, pos_label in designated_positions %}
+                                        <label class="dropdown-item">
+                                            <input type="checkbox" class="ajax-position-checkbox"
+                                                   data-entry-id="{{ entry.id }}"
+                                                   data-position-key="{{ pos_key }}"
+                                                   {% if pos_key in entry.participant_position_keys %}checked{% endif %}>
+                                            <span><strong>{{ pos_label }}</strong></span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="dropdown-header">Other Staff / Employees</div>
                                     <div class="dropdown-list">
                                         {% for u in users %}
+                                        {% if not u.designated_position_key() %}
                                         <label class="dropdown-item">
-                                            <input type="checkbox" class="ajax-attendant-checkbox" 
-                                                   data-entry-id="{{ entry.id }}" 
+                                            <input type="checkbox" class="ajax-attendant-checkbox"
+                                                   data-entry-id="{{ entry.id }}"
                                                    data-user-id="{{ u.id }}"
-                                                   {% if u in entry.attendants %}checked{% endif %}>
+                                                   {% if u.id in entry.participant_user_ids %}checked{% endif %}>
                                             <span>{{ u.name }}</span>
                                         </label>
+                                        {% endif %}
                                         {% endfor %}
                                     </div>
                                 </div>
                             </div>
                             {% else %}
                             <div class="attend-toggle-ui" style="margin-top: 6px;">
-                                {% set is_attending = current_user in entry.attendants %}
-                                <button type="button" 
-                                        class="btn-attend-toggle {% if is_attending %}active{% endif %}" 
+                                {% set is_attending = current_user.id in entry.participant_user_ids %}
+                                <button type="button"
+                                        class="btn-attend-toggle {% if is_attending %}active{% endif %}"
                                         data-entry-id="{{ entry.id }}"
                                         data-user-name="{{ current_user.name }}">
                                     {% if is_attending %}✓ Attending{% else %}Attend{% endif %}
@@ -179,18 +279,22 @@
                         <span style="color: var(--border);">|</span>
                         <a class="inline-link" href="{{ url_for('dashboard.mom_view', entry_id=entry.id) }}">View</a>
                     </td>
-                    {% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}
+                    {% if current_user.can_create_meetings() %}
                     <td class="col-action">
+                        {% if entry.can_be_modified_by(current_user) %}
                         <a class="inline-link" href="{{ url_for('admin.edit_schedule', entry_id=entry.id) }}">Edit</a>
                         <span style="color: var(--border);">|</span>
-                        <a class="inline-link" href="{{ url_for('admin.notify_attendants', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to notify all attendants?');">Notify</a>
+                        <a class="inline-link" href="{{ url_for('admin.notify_attendants', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to notify all participants?');">Notify</a>
                         <span style="color: var(--border);">|</span>
-                        <a class="inline-link" style="color: var(--danger);" href="{{ url_for('admin.delete_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to delete this schedule entry?');">Delete</a>
+                        <a class="inline-link" style="color: var(--danger);" href="{{ url_for('admin.delete_schedule', entry_id=entry.id) }}" onclick="return confirm('Are you sure you want to cancel/delete this meeting?');">Delete</a>
+                        {% else %}
+                        <span class="muted-text">View Only</span>
+                        {% endif %}
                     </td>
                     {% endif %}
                 </tr>
                 {% else %}
-                <tr><td colspan="{% if current_user.is_admin_role() or current_user.role == 'Proprietor' %}15{% else %}14{% endif %}" class="empty-state">No schedule entries available for this range.</td></tr>
+                <tr><td colspan="{% if current_user.can_create_meetings() %}15{% else %}14{% endif %}" class="empty-state">No schedule entries available for this range.</td></tr>
                 {% endfor %}
             </tbody>
             {% endif %}

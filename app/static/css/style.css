@@ -1190,4 +1190,156 @@ body[data-theme="dark"] .notif-badge {
     flex-grow: 1 !important;
   }
 }
+
+/* Multi-Role Scheduling Tabs, Badges & Participant Form Enhancements */
+.schedule-tabs-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 10px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+
+.schedule-tabs-bar .schedule-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 999px;
+}
+
+.meta-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.activity-title-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.common-meeting-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(29, 138, 84, 0.14);
+  color: var(--success);
+  border: 1px solid rgba(29, 138, 84, 0.25);
+  white-space: nowrap;
+}
+
+.meeting-type-tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--surface-alt);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.activity-subtext {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.activity-meta-audit {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+.attendant-name-badge.position-chip {
+  background: rgba(18, 58, 107, 0.14);
+  border: 1px solid rgba(18, 58, 107, 0.2);
+  font-weight: 600;
+}
+
+body[data-theme="dark"] .attendant-name-badge.position-chip {
+  background: rgba(101, 162, 255, 0.18);
+  border-color: rgba(101, 162, 255, 0.3);
+}
+
+body[data-theme="dark"] .field-card {
+  background: var(--surface-alt);
+}
+
+.btn-select-all-positions {
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  cursor: pointer;
+}
+
+.btn-select-all-positions.active {
+  background: var(--success);
+  color: #ffffff;
+  border-color: var(--success);
+}
+
+.combined-banner {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(29, 138, 84, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(29, 138, 84, 0.25);
+  font-size: 0.88rem;
+  margin-top: 6px;
+}
+
+.participant-summary-box {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-alt);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.status-badge.active {
+  background: rgba(29, 138, 84, 0.14);
+  color: var(--success);
+}
+
+.status-badge.inactive {
+  background: rgba(198, 40, 40, 0.14);
+  color: var(--danger);
+}
+
+@media print {
+  .schedule-tabs-bar,
+  .meta-pill,
+  .activity-meta-audit {
+    display: none !important;
+  }
+}
 

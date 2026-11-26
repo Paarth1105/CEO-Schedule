@@ -86,69 +86,30 @@ def inject_common_context():
     }
 
 from app.models.user import User
-from app.models.schedule import ScheduleEntry
+from app.models.schedule import ScheduleEntry, MeetingParticipant, ScheduleAuditLog
 from app.models.agenda_mom import Agenda, MOM
 from app.models.request import RequestMessage
 from app.models.notification import Notification
+from app.services.schedule_sync import ensure_schema_and_backfill
 
 
 with app.app_context():
-    db.create_all()
-    try:
-        from sqlalchemy import inspect
-        inspector = inspect(db.engine)
+    ensure_schema_and_backfill()
 
-        # Check request_message table
-        if inspector.has_table('request_message'):
-            columns = [c['name'] for c in inspector.get_columns('request_message')]
-            modified = False
-            if 'feedback_time' not in columns:
-                db.session.execute(text("ALTER TABLE request_message ADD COLUMN feedback_time TEXT"))
-                modified = True
-            if 'feedback_message' not in columns:
-                db.session.execute(text("ALTER TABLE request_message ADD COLUMN feedback_message TEXT"))
-                modified = True
-            if modified:
-                db.session.commit()
 
-        # Check schedule_entry table
-        if inspector.has_table('schedule_entry'):
-            columns2 = [c['name'] for c in inspector.get_columns('schedule_entry')]
-            modified2 = False
-            if 'given_time' not in columns2:
-                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN given_time TEXT"))
-                modified2 = True
-            if 'user_id' not in columns2:
-                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN user_id INTEGER"))
-                modified2 = True
-            if 'google_location' not in columns2:
-                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN google_location TEXT"))
-                modified2 = True
-            if 'schedule_type' not in columns2:
-                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN schedule_type VARCHAR(40) DEFAULT 'ceo'"))
-                modified2 = True
-            if 'alert_sent_10m' not in columns2:
-                db.session.execute(text("ALTER TABLE schedule_entry ADD COLUMN alert_sent_10m BOOLEAN DEFAULT FALSE"))
-                modified2 = True
-            if modified2:
-                db.session.commit()
-
-        # Check user table
-        if inspector.has_table('user'):
-            columns_user = [c['name'] for c in inspector.get_columns('user')]
-            if 'phone_number' not in columns_user:
-                db.session.execute(text("ALTER TABLE user ADD COLUMN phone_number VARCHAR(20)"))
-                db.session.commit()
-
-        # Check notification table
-        if inspector.has_table('notification'):
-            columns3 = [c['name'] for c in inspector.get_columns('notification')]
-            if 'schedule_entry_id' not in columns3:
-                db.session.execute(text("ALTER TABLE notification ADD COLUMN schedule_entry_id INTEGER"))
-                db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        print("Schema verification warning:", e)
+@app.before_request
+def enforce_active_session_user():
+    from flask import session, redirect, url_for, flash, request
+    if 'user_id' in session:
+        if request.endpoint and request.endpoint.startswith('static'):
+            return None
+        user = User.query.get(session['user_id'])
+        if not user or not user.is_active:
+            session.clear()
+            flash('Your account is inactive or unavailable. Please log in again.', 'warning')
+            return redirect(url_for('auth.login'))
+        session['user_role'] = user.role
+        session['user_name'] = user.name
 
 
 from app.routes.auth import auth_bp

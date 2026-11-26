@@ -45,16 +45,25 @@ def check_and_send_10min_alerts(app):
     """Background task running every minute to trigger 10-minute prior WhatsApp, SMS & Email alerts."""
     with app.app_context():
         from app import db
-        from app.models.schedule import ScheduleEntry
+        from sqlalchemy import or_
+        from app.models.schedule import ScheduleEntry, MeetingParticipant
         from app.models.user import User
 
         now_utc = datetime.utcnow()
         now_ist = now_utc + timedelta(hours=5, minutes=30)
         today = now_ist.date()
 
-        entries = ScheduleEntry.query.filter_by(
-            event_date=today,
-            alert_sent_10m=False
+        ceo_entry_ids = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+            MeetingParticipant.position_key == 'ceo'
+        )
+        entries = ScheduleEntry.query.filter(
+            ScheduleEntry.event_date == today,
+            ScheduleEntry.alert_sent_10m.is_(False),
+            ScheduleEntry.status != 'Cancelled',
+            or_(
+                ScheduleEntry.id.in_(ceo_entry_ids),
+                ScheduleEntry.schedule_type == 'ceo',
+            ),
         ).all()
 
         for entry in entries:
@@ -107,7 +116,9 @@ def send_daily_9am_whatsapp_digest(app, force=False):
     """
     global DAILY_DIGEST_SENT_DATE
     with app.app_context():
-        from app.models.schedule import ScheduleEntry
+        from app import db
+        from sqlalchemy import or_
+        from app.models.schedule import ScheduleEntry, MeetingParticipant
         from app.models.user import User
 
         now_utc = datetime.utcnow()
@@ -118,10 +129,16 @@ def send_daily_9am_whatsapp_digest(app, force=False):
         if DAILY_DIGEST_SENT_DATE == today and not force:
             return True
 
+        ceo_entry_ids = db.session.query(MeetingParticipant.schedule_entry_id).filter(
+            MeetingParticipant.position_key == 'ceo'
+        )
         today_entries = ScheduleEntry.query.filter(
             ScheduleEntry.event_date == today,
-            or_(ScheduleEntry.schedule_type == 'ceo', ScheduleEntry.schedule_type.is_(None)),
-            ScheduleEntry.schedule_type != 'proprietor'
+            ScheduleEntry.status != 'Cancelled',
+            or_(
+                ScheduleEntry.id.in_(ceo_entry_ids),
+                ScheduleEntry.schedule_type == 'ceo',
+            ),
         ).order_by(ScheduleEntry.time.asc()).all()
 
         if not today_entries and not force:

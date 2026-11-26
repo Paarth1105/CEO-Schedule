@@ -14,7 +14,7 @@ try:
         r'C:\Apps\CEO-Schedule\instance\schedule_app.db',
         r'C:\Apps\CEO-Schedule\ceo_schedule.db'
     ]
-    tables = ['user', 'schedule_entry', 'request_message', 'agenda', 'mom', 'notification', 'schedule_attendants']
+    tables = ['user', 'schedule_entry', 'meeting_participant', 'schedule_audit_log', 'request_message', 'agenda', 'mom', 'notification', 'schedule_attendants']
 
     for target in sqlite_targets:
         os.makedirs(os.path.dirname(target), exist_ok=True)

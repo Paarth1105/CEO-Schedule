@@ -1,113 +1,220 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card">
-    <h2>{% if entry %}Edit{% else %}Create{% endif %} Schedule Entry</h2>
-    <form method="post">
-        {% if session.get('user_role') != 'Proprietor' %}
-        <div style="margin-bottom: 16px; padding: 12px; border-radius: 8px; background: var(--surface-hover, rgba(0,0,0,0.03)); border: 1px solid var(--border);">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text);">Schedule Target</label>
-            <div style="display: flex; gap: 24px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="radio" name="schedule_type" value="ceo" {% if (entry and entry.schedule_type != 'proprietor') or (not entry and target != 'proprietor') %}checked{% endif %}>
-                    <strong>CEO Schedule</strong>
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="radio" name="schedule_type" value="proprietor" {% if (entry and entry.schedule_type == 'proprietor') or (not entry and target == 'proprietor') %}checked{% endif %}>
-                    <strong>Proprietor Schedule</strong>
-                </label>
+<div class="card form-shell" style="max-width: 920px; margin: 0 auto;">
+    <div class="section-header">
+        <div>
+            <h2>{% if entry %}Edit{% else %}Create{% endif %} Schedule / Meeting</h2>
+            <p style="color: var(--muted); margin: 0;">Select one or more designated positions and/or staff participants. Changes automatically sync across all selected calendars.</p>
+        </div>
+        <a href="{{ url_for('dashboard.schedule') }}" class="inline-link">← Back to Dashboard</a>
+    </div>
+
+    <form method="post" id="meeting-schedule-form" class="stacked-form">
+        <div class="form-grid">
+            <label class="field-card">
+                <span>Meeting Title / Activity *</span>
+                <input type="text" name="activity" value="{{ entry.activity if entry else '' }}" required placeholder="e.g. Monthly Management Review">
+            </label>
+            <label class="field-card">
+                <span>Meeting Type</span>
+                <select name="meeting_type">
+                    {% set current_mtype = entry.meeting_type if (entry and entry.meeting_type) else 'Meeting' %}
+                    {% for mtype in ['Meeting', 'Management Review', 'Departmental', 'Client / External', 'Task / Event', 'Confidential'] %}
+                    <option value="{{ mtype }}" {% if current_mtype == mtype %}selected{% endif %}>{{ mtype }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+
+        <label class="field-card">
+            <span>Meeting Description</span>
+            <textarea name="description" rows="2" placeholder="Optional brief description or agenda summary">{{ entry.description if (entry and entry.description) else '' }}</textarea>
+        </label>
+
+        <div class="form-grid">
+            <label class="field-card">
+                <span>Meeting Date *</span>
+                <input type="date" name="event_date" value="{{ entry.event_date if entry else (default_date or '') }}" required>
+            </label>
+            <label class="field-card">
+                <span>Given Time (Auto-calculated Duration)</span>
+                <input type="text" id="given_time" name="given_time" value="{{ entry.given_time if entry else '' }}" readonly placeholder="Auto-calculated from Start and End time" style="background-color: var(--border); cursor: not-allowed;">
+            </label>
+        </div>
+
+        <div class="time-range-card">
+            <div class="field-card">
+                <span>Start Time *</span>
+                <div class="time-picker-group">
+                    <select name="start_hour" class="time-select" required>
+                        <option value="">Hour</option>
+                        {% for hour in range(1, 13) %}
+                        {% set h_str = '%02d'|format(hour) %}
+                        <option value="{{ h_str }}" {% if start_hour|default('') == h_str %}selected{% endif %}>{{ h_str }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="start_minute" class="time-select" required>
+                        <option value="">Minute</option>
+                        {% for minute in ['00','15','30','45'] %}
+                        <option value="{{ minute }}" {% if start_minute|default('') == minute %}selected{% endif %}>{{ minute }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="start_meridiem" class="time-select" required>
+                        <option value="AM" {% if start_meridiem|default('AM') == 'AM' %}selected{% endif %}>AM</option>
+                        <option value="PM" {% if start_meridiem|default('AM') == 'PM' %}selected{% endif %}>PM</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field-card">
+                <span>End Time *</span>
+                <div class="time-picker-group">
+                    <select name="end_hour" class="time-select" required>
+                        <option value="">Hour</option>
+                        {% for hour in range(1, 13) %}
+                        {% set h_str = '%02d'|format(hour) %}
+                        <option value="{{ h_str }}" {% if end_hour|default('') == h_str %}selected{% endif %}>{{ h_str }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="end_minute" class="time-select" required>
+                        <option value="">Minute</option>
+                        {% for minute in ['00','15','30','45'] %}
+                        <option value="{{ minute }}" {% if end_minute|default('') == minute %}selected{% endif %}>{{ minute }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="end_meridiem" class="time-select" required>
+                        <option value="AM" {% if end_meridiem|default('PM') == 'AM' %}selected{% endif %}>AM</option>
+                        <option value="PM" {% if end_meridiem|default('PM') == 'PM' %}selected{% endif %}>PM</option>
+                    </select>
+                </div>
             </div>
         </div>
-        {% else %}
-        <input type="hidden" name="schedule_type" value="proprietor">
-        {% endif %}
-        <label>Date</label>
-        <input type="date" name="event_date" value="{{ entry.event_date if entry else (default_date or '') }}" required>
-        <label>Start Time</label>
-        <div class="time-picker-group" style="margin-bottom: 10px;">
-            <select name="start_hour" class="time-select" required>
-                <option value="">Hour</option>
-                {% for hour in range(1, 13) %}
-                {% set h_str = '%02d'|format(hour) %}
-                <option value="{{ h_str }}" {% if start_hour|default('') == h_str %}selected{% endif %}>{{ h_str }}</option>
-                {% endfor %}
-            </select>
-            <select name="start_minute" class="time-select" required>
-                <option value="">Minute</option>
-                {% for minute in ['00','15','30','45'] %}
-                <option value="{{ minute }}" {% if start_minute|default('') == minute %}selected{% endif %}>{{ minute }}</option>
-                {% endfor %}
-            </select>
-            <select name="start_meridiem" class="time-select" required>
-                <option value="AM" {% if start_meridiem|default('AM') == 'AM' %}selected{% endif %}>AM</option>
-                <option value="PM" {% if start_meridiem|default('AM') == 'PM' %}selected{% endif %}>PM</option>
-            </select>
-        </div>
 
-        <label>End Time</label>
-        <div class="time-picker-group" style="margin-bottom: 10px;">
-            <select name="end_hour" class="time-select" required>
-                <option value="">Hour</option>
-                {% for hour in range(1, 13) %}
-                {% set h_str = '%02d'|format(hour) %}
-                <option value="{{ h_str }}" {% if end_hour|default('') == h_str %}selected{% endif %}>{{ h_str }}</option>
-                {% endfor %}
-            </select>
-            <select name="end_minute" class="time-select" required>
-                <option value="">Minute</option>
-                {% for minute in ['00','15','30','45'] %}
-                <option value="{{ minute }}" {% if end_minute|default('') == minute %}selected{% endif %}>{{ minute }}</option>
-                {% endfor %}
-            </select>
-            <select name="end_meridiem" class="time-select" required>
-                <option value="AM" {% if end_meridiem|default('PM') == 'AM' %}selected{% endif %}>AM</option>
-                <option value="PM" {% if end_meridiem|default('PM') == 'PM' %}selected{% endif %}>PM</option>
-            </select>
-        </div>
-        <label>Given Time</label>
-        <input type="text" id="given_time" name="given_time" value="{{ entry.given_time if entry else '' }}" readonly placeholder="Auto-calculated from Start and End time" style="background-color: var(--border); cursor: not-allowed;">
-
-        <label>Activity</label>
-        <input type="text" name="activity" value="{{ entry.activity if entry else '' }}" required>
-        <label>Location</label>
-        <input type="text" name="location" value="{{ entry.location if entry else '' }}" required>
-        <label>Google Location (URL)</label>
-        <input type="url" name="google_location" value="{{ entry.google_location if entry else '' }}" placeholder="https://maps.google.com/...">
-        <label>Responsible Person</label>
-        <input type="text" name="responsible_person" value="{{ entry.responsible_person if entry else (session.get('user_name') if session.get('user_role') == 'Proprietor' else '') }}" required>
-        <label>Priority</label>
-        <select name="priority">
-            <option value="Urgent" {% if entry and entry.priority=='Urgent' %}selected{% endif %}>Urgent</option>
-            <option value="Normal" {% if entry and entry.priority=='Normal' %}selected{% endif %}>Normal</option>
-            <option value="Confidential" {% if entry and entry.priority=='Confidential' %}selected{% endif %}>Confidential</option>
-        </select>
-        <label>Status</label>
-        <select name="status">
-            <option value="Planned" {% if entry and entry.status=='Planned' %}selected{% endif %}>Planned</option>
-            <option value="Done" {% if entry and entry.status=='Done' %}selected{% endif %}>Done</option>
-            <option value="Rescheduled" {% if entry and entry.status=='Rescheduled' %}selected{% endif %}>Rescheduled</option>
-        </select>
-        <label>Remark</label>
-        <input type="text" name="remark" value="{{ entry.remark if entry else '' }}">
-        <label>Reschedule</label>
-        <select name="reschedule">
-            <option value="NO" {% if entry and entry.reschedule=='NO' %}selected{% endif %}>NO</option>
-            <option value="YES" {% if entry and entry.reschedule=='YES' %}selected{% endif %}>YES</option>
-        </select>
-
-        <label>Attendants</label>
-        <div class="attendants-checkbox-grid">
-            {% for u in users %}
-            <label class="checkbox-card">
-                <input type="checkbox" name="attendants" value="{{ u.id }}" {% if entry and u in entry.attendants %}checked{% endif %}>
-                <div class="checkbox-info">
-                    <span class="user-name">{{ u.name }}</span>
-                    <span class="user-role">{{ u.role }} ({{ u.department }})</span>
-                </div>
+        <div class="form-grid">
+            <label class="field-card">
+                <span>Meeting Location *</span>
+                <input type="text" name="location" value="{{ entry.location if entry else '' }}" required placeholder="e.g. Conference Room / Boardroom">
             </label>
-            {% endfor %}
+            <label class="field-card">
+                <span>Google Location (URL)</span>
+                <input type="url" name="google_location" value="{{ entry.google_location if entry else '' }}" placeholder="https://maps.google.com/...">
+            </label>
         </div>
 
-        <button type="submit">Save</button>
+        <div class="form-grid">
+            <label class="field-card">
+                <span>Responsible Person / Chairperson *</span>
+                <input type="text" name="responsible_person" value="{{ entry.responsible_person if entry else session.get('user_name', '') }}" required>
+            </label>
+            <label class="field-card">
+                <span>Priority</span>
+                <select name="priority">
+                    <option value="Urgent" {% if entry and entry.priority=='Urgent' %}selected{% endif %}>Urgent</option>
+                    <option value="Normal" {% if (entry and entry.priority=='Normal') or not entry %}selected{% endif %}>Normal</option>
+                    <option value="Confidential" {% if entry and entry.priority=='Confidential' %}selected{% endif %}>Confidential</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="form-grid">
+            <label class="field-card">
+                <span>Status</span>
+                <select name="status">
+                    <option value="Planned" {% if (entry and entry.status=='Planned') or not entry %}selected{% endif %}>Planned</option>
+                    <option value="Done" {% if entry and entry.status=='Done' %}selected{% endif %}>Done</option>
+                    <option value="Rescheduled" {% if entry and entry.status=='Rescheduled' %}selected{% endif %}>Rescheduled</option>
+                    <option value="Cancelled" {% if entry and entry.status=='Cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+            </label>
+            <label class="field-card">
+                <span>Reschedule</span>
+                <select name="reschedule">
+                    <option value="NO" {% if (entry and entry.reschedule=='NO') or not entry %}selected{% endif %}>NO</option>
+                    <option value="YES" {% if entry and entry.reschedule=='YES' %}selected{% endif %}>YES</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="form-grid">
+            <label class="field-card">
+                <span>Remark</span>
+                <input type="text" name="remark" value="{{ entry.remark if (entry and entry.remark) else '' }}" placeholder="Short remark">
+            </label>
+            <label class="field-card">
+                <span>Additional Notes</span>
+                <textarea name="notes" rows="2" placeholder="Optional additional notes for participants">{{ entry.notes if (entry and entry.notes) else '' }}</textarea>
+            </label>
+        </div>
+
+        <div class="field-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 6px;">
+                <div>
+                    <strong style="font-size: 1rem; color: var(--primary);">Designated Positions (Participants)</strong>
+                    <div style="font-size: 0.82rem; color: var(--muted);">Selecting all 6 positions automatically places this meeting on the Combined Schedule.</div>
+                </div>
+                <button type="button" id="select-all-six-btn" class="btn-select-all-positions">
+                    Select All Six Positions
+                </button>
+            </div>
+
+            <div id="combined-status-banner" class="combined-banner" style="display: none;">
+                ✓ All 6 Designated Positions selected — this meeting will appear in all 6 role calendars and the <strong>Combined Schedule</strong>.
+            </div>
+
+            <div class="attendants-checkbox-grid" style="margin: 8px 0 4px;">
+                {% for pos_key, pos_label in designated_positions %}
+                {% set holder = position_holders.get(pos_key) %}
+                <label class="checkbox-card position-checkbox-card">
+                    <input type="checkbox"
+                           class="designated-position-checkbox"
+                           name="positions"
+                           value="{{ pos_key }}"
+                           data-label="{{ pos_label }}{% if holder %} ({{ holder.name }}){% endif %}"
+                           {% if pos_key in selected_positions %}checked{% endif %}>
+                    <div class="checkbox-info">
+                        <span class="user-name">{{ pos_label }}</span>
+                        <span class="user-role">{% if holder %}{{ holder.name }}{% else %}Position Calendar{% endif %}</span>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="field-card">
+            <strong style="font-size: 0.95rem;">Other Staff / Employees (Optional Participants)</strong>
+            <div class="attendants-checkbox-grid" style="margin: 8px 0 0;">
+                {% for u in users %}
+                {% if not u.designated_position_key() %}
+                <label class="checkbox-card">
+                    <input type="checkbox"
+                           class="staff-participant-checkbox"
+                           name="attendants"
+                           value="{{ u.id }}"
+                           data-label="{{ u.name }} ({{ u.role }})"
+                           {% if u.id in selected_user_ids %}checked{% endif %}>
+                    <div class="checkbox-info">
+                        <span class="user-name">{{ u.name }}</span>
+                        <span class="user-role">{{ u.role }} ({{ u.department }})</span>
+                    </div>
+                </label>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="participant-summary-box" id="selected-participants-summary">
+            <div style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; margin-bottom: 6px;">
+                Selected Participants Preview
+            </div>
+            <div id="selected-participants-list" class="attendants-names-list" style="max-width: 100%;">
+                <span class="muted-text">No participants selected yet.</span>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" id="save-meeting-btn" class="btn primary">{% if entry %}Update Meeting{% else %}Save & Sync Meeting{% endif %}</button>
+            <a href="{{ url_for('dashboard.schedule') }}" class="btn" style="background: var(--surface-alt); color: var(--text); border: 1px solid var(--border);">Cancel</a>
+        </div>
     </form>
 </div>
 
@@ -143,24 +250,17 @@ document.addEventListener('DOMContentLoaded', () => {
             let endTotal = eHour * 60 + eMin;
 
             let diff = endTotal - startTotal;
-            if (diff < 0) {
-                // assume next day or overflow
-                diff += 24 * 60;
-            }
+            if (diff < 0) diff += 24 * 60;
 
-            let hours = Math.floor(diff / 60);
-            let mins = diff % 60;
+            const hours = Math.floor(diff / 60);
+            const mins = diff % 60;
             let durationStr = '';
-            if (hours > 0) {
-                durationStr += `${hours} hr${hours > 1 ? 's' : ''}`;
-            }
+            if (hours > 0) durationStr += `${hours} hr${hours > 1 ? 's' : ''}`;
             if (mins > 0) {
                 if (durationStr) durationStr += ' ';
                 durationStr += `${mins} min${mins > 1 ? 's' : ''}`;
             }
-            if (diff === 0) {
-                durationStr = '0 mins';
-            }
+            if (diff === 0) durationStr = '0 mins';
             givenTimeInput.value = durationStr;
         } else {
             givenTimeInput.value = '';
@@ -168,13 +268,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     [startHourSelect, startMinuteSelect, startMeridiemSelect, endHourSelect, endMinuteSelect, endMeridiemSelect].forEach(select => {
-        if (select) {
-            select.addEventListener('change', calculateGivenTime);
+        if (select) select.addEventListener('change', calculateGivenTime);
+    });
+    calculateGivenTime();
+
+    const posCheckboxes = Array.from(document.querySelectorAll('.designated-position-checkbox'));
+    const staffCheckboxes = Array.from(document.querySelectorAll('.staff-participant-checkbox'));
+    const selectAllBtn = document.getElementById('select-all-six-btn');
+    const combinedBanner = document.getElementById('combined-status-banner');
+    const summaryList = document.getElementById('selected-participants-list');
+    const form = document.getElementById('meeting-schedule-form');
+    const saveBtn = document.getElementById('save-meeting-btn');
+
+    function refreshParticipantUI() {
+        const checkedPositions = posCheckboxes.filter(c => c.checked);
+        const checkedStaff = staffCheckboxes.filter(c => c.checked);
+        const allSixSelected = posCheckboxes.length === 6 && checkedPositions.length === 6;
+
+        if (combinedBanner) {
+            combinedBanner.style.display = allSixSelected ? 'block' : 'none';
         }
+        if (selectAllBtn) {
+            selectAllBtn.textContent = allSixSelected ? 'Clear All Six Positions' : 'Select All Six Positions';
+            selectAllBtn.classList.toggle('active', allSixSelected);
+        }
+        if (summaryList) {
+            summaryList.innerHTML = '';
+            const allChecked = [...checkedPositions.map(c => ({ label: c.getAttribute('data-label'), isPos: true })),
+                                ...checkedStaff.map(c => ({ label: c.getAttribute('data-label'), isPos: false }))];
+            if (allChecked.length > 0) {
+                allChecked.forEach((item, idx) => {
+                    const span = document.createElement('span');
+                    span.className = item.isPos ? 'attendant-name-badge position-chip' : 'attendant-name-badge';
+                    span.textContent = item.label || '';
+                    summaryList.appendChild(span);
+                    if (idx < allChecked.length - 1) {
+                        summaryList.appendChild(document.createTextNode(' '));
+                    }
+                });
+            } else {
+                const muted = document.createElement('span');
+                muted.className = 'muted-text';
+                muted.textContent = 'No participants selected yet. Please select at least one participant.';
+                summaryList.appendChild(muted);
+            }
+        }
+    }
+
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => {
+            const allChecked = posCheckboxes.every(c => c.checked);
+            posCheckboxes.forEach(c => { c.checked = !allChecked; });
+            refreshParticipantUI();
+        });
+    }
+
+    [...posCheckboxes, ...staffCheckboxes].forEach(chk => {
+        chk.addEventListener('change', refreshParticipantUI);
     });
 
-    // Run initially in case of edit mode
-    calculateGivenTime();
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            const anySelected = [...posCheckboxes, ...staffCheckboxes].some(c => c.checked);
+            if (!anySelected) {
+                e.preventDefault();
+                alert('Please select at least one designated position or staff participant.');
+                return;
+            }
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving & Syncing...';
+            }
+        });
+    }
+
+    refreshParticipantUI();
 });
 </script>
 {% endblock %}
